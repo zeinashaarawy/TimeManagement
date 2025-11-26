@@ -1,8 +1,8 @@
 import { Types } from "mongoose";
 import { Schema, Prop, SchemaFactory } from "@nestjs/mongoose";
-import { AttendanceRecord, Punch } from "./attendance-record.schema";
+import { AttendanceRecord } from "./attendance-record.schema";
 import { HydratedDocument } from "mongoose";
-import { CorrectionRequestStatus } from "./enums/index";
+import { CorrectionRequestStatus } from "../../enums/index";
 
 export type AttendanceCorrectionRequestDocument = HydratedDocument<AttendanceCorrectionRequest>;
 

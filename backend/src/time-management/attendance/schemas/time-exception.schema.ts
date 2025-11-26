@@ -1,7 +1,7 @@
 import { Types } from "mongoose";
 import { Schema, Prop, SchemaFactory } from "@nestjs/mongoose";
 import { HydratedDocument } from "mongoose";
-import { TimeExceptionType, TimeExceptionStatus } from "./enums/index";
+import { TimeExceptionType, TimeExceptionStatus } from "../../enums/index";
 
 export type TimeExceptionDocument = HydratedDocument<TimeException>;
 

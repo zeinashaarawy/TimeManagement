@@ -2,17 +2,17 @@ import { Module } from '@nestjs/common';
 import { TimeManagementController } from './time-management.controller';
 import { TimeManagementService } from './time-management.service';
 import { MongooseModule } from '@nestjs/mongoose';
-import { NotificationLogSchema, NotificationLog } from './models/notification-log.schema';
-import { AttendanceCorrectionRequestSchema, AttendanceCorrectionRequest } from './models/attendance-correction-request.schema';
-import { ShiftTypeSchema, ShiftType } from './models/shift-type.schema';
-import { ScheduleRuleSchema, ScheduleRule } from './models/schedule-rule.schema';
-import { AttendanceRecordSchema, AttendanceRecord } from './models/attendance-record.schema';
-import { TimeExceptionSchema, TimeException } from './models/time-exception.schema';
-import { OvertimeRuleSchema, OvertimeRule } from './models/overtime-rule.schema';
-import { ShiftSchema, Shift } from './models/shift.schema';
-import { ShiftAssignmentSchema, ShiftAssignment } from './models/shift-assignment.schema';
-import { LatenessRule, latenessRuleSchema } from './models/lateness-rule.schema';
-import { HolidaySchema, Holiday } from './models/holiday.schema';
+import { NotificationLogSchema, NotificationLog } from './notifications/schemas/notification-log.schema';
+import { AttendanceCorrectionRequestSchema, AttendanceCorrectionRequest } from './attendance/schemas/attendance-correction-request.schema';
+import { ShiftTypeSchema, ShiftType } from './schedule/schemas/shift-type.schema';
+import { ScheduleRuleSchema, ScheduleRule } from './schedule/schemas/schedule-rule.schema';
+import { AttendanceRecordSchema, AttendanceRecord } from './attendance/schemas/attendance-record.schema';
+import { TimeExceptionSchema, TimeException } from './attendance/schemas/time-exception.schema';
+import { OvertimeRuleSchema, OvertimeRule } from './schedule/schemas/overtime-rule.schema';
+import { ShiftSchema, Shift } from './schedule/schemas/shift.schema';
+import { ShiftAssignmentSchema, ShiftAssignment } from './schedule/schemas/shift-assignment.schema';
+import { LatenessRule, latenessRuleSchema } from './schedule/schemas/lateness-rule.schema';
+import { HolidaySchema, Holiday } from './holiday/schemas/holiday.schema';
 
 
 @Module({

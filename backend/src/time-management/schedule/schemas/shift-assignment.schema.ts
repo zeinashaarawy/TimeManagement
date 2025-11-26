@@ -1,7 +1,7 @@
 import { SchemaFactory, Schema, Prop } from "@nestjs/mongoose";
 import { Types } from "mongoose";
 import { HydratedDocument } from "mongoose";
-import { ShiftAssignmentStatus } from "./enums/index";
+import { ShiftAssignmentStatus } from "../../enums/index";
 
 export type ShiftAssignmentDocument = HydratedDocument<ShiftAssignment>;
 
