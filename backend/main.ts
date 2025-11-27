@@ -1,8 +1,13 @@
 import { NestFactory } from '@nestjs/core';
-import { TimeManagementModule } from './src/time-management/time-management.module';
+import { AppModule } from './app.module';
+import { ConfigService } from '@nestjs/config';
+
+
+const configService = new ConfigService();
+console.log(configService.get<string>('MONGO_URI')); // should print your URI
 
 async function bootstrap() {
-  const app = await NestFactory.create(TimeManagementModule);
-  await app.listen(process.env.PORT ?? 3000);
+  const app = await NestFactory.create(AppModule);
+  await app.listen(3000);
 }
 bootstrap();

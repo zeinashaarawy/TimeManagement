@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TimeManagementController } from './time-management.controller';
 import { TimeManagementService } from './time-management.service';
+import { AttendanceController } from './attendance/controllers/attendance.controller';
 import { MongooseModule } from '@nestjs/mongoose';
 import { NotificationLogSchema, NotificationLog } from './notifications/schemas/notification-log.schema';
 import { AttendanceCorrectionRequestSchema, AttendanceCorrectionRequest } from './attendance/schemas/attendance-correction-request.schema';
