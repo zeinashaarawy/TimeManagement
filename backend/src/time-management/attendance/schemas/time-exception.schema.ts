@@ -17,7 +17,7 @@ export class TimeException{
     attendanceRecordId: Types.ObjectId;
 
     @Prop({type: Types.ObjectId, ref: 'EmployeeProfile', required: true})
-    assignedTo: Types.ObjectId; // person responsible for handling the exception
+    assignedTo?: Types.ObjectId; // person responsible for handling the exception
 
     @Prop({ enum: TimeExceptionStatus, default: TimeExceptionStatus.OPEN })
     status: TimeExceptionStatus;
