@@ -2,7 +2,7 @@ import { Controller, Get, Post, Body, Param, Query, BadRequestException } from '
 import { PayrollService } from '../services/payroll.service';
 import { PrePayrollService } from '../services/pre-payroll.service';
 import { Types } from 'mongoose';
-import { ParseObjectIdPipe } from '../../common/pipes/parse-object-id.pipe';
+import { ParseObjectIdPipe } from '../../../common/pipes/parse-object-id.pipe';
 
 @Controller('payroll')
 export class PayrollController {

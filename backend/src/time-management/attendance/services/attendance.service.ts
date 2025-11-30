@@ -22,12 +22,14 @@ export class AttendanceService {
     // Find or create today's attendance record
     let record = await this.recordModel.findOne<AttendanceRecordDocument>({
       employeeId: new Types.ObjectId(dto.employeeId),
+      recordDate: dateOnly,
       finalisedForPayroll: true, // optional: only modify current active record
     });
 
     if (!record) {
       record = new this.recordModel({
         employeeId: new Types.ObjectId(dto.employeeId),
+        recordDate: dateOnly,
         punches: [],
         totalWorkMinutes: 0,
         hasMissedPunch: false,
@@ -83,12 +85,9 @@ export class AttendanceService {
     };
 
     if (date) {
-      const start = new Date(date);
-      start.setHours(0, 0, 0, 0);
-      const end = new Date(date);
-      end.setHours(23, 59, 59, 999);
-
-      query['punches.time'] = { $gte: start, $lte: end };
+      const dateOnly = new Date(date);
+      dateOnly.setHours(0, 0, 0, 0);
+      query.recordDate = dateOnly;
     }
 
     return this.recordModel.findOne(query).exec();

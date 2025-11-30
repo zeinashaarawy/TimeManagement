@@ -3,7 +3,7 @@ import { PolicyService } from '../services/policy.service';
 import { PolicyEngineService } from '../services/policy-engine.service';
 import { TimePolicy, PolicyScope } from '../schemas/time-policy.schema';
 import { Types } from 'mongoose';
-import { ParseObjectIdPipe } from '../../common/pipes/parse-object-id.pipe';
+import { ParseObjectIdPipe } from '../../../common/pipes/parse-object-id.pipe';
 
 @Controller('policies')
 export class PolicyController {

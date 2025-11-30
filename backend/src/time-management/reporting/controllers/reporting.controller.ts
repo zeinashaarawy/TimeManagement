@@ -4,7 +4,7 @@ import { ReportingService } from '../services/reporting.service';
 import { Types } from 'mongoose';
 import { PenaltyStatus } from '../../policy/schemas/penalty-record.schema';
 import { OvertimeStatus } from '../../policy/schemas/overtime-record.schema';
-import { ParseObjectIdPipe } from '../../common/pipes/parse-object-id.pipe';
+import { ParseObjectIdPipe } from '../../../common/pipes/parse-object-id.pipe';
 
 @Controller('reports')
 export class ReportingController {
