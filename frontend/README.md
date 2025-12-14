@@ -1,40 +1,130 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/pages/api-reference/create-next-app).
+# HR System — Frontend Setup (Milestone 3)
 
-## Getting Started
+This document describes the setup and folder structure for the **frontend** of the HR System.  
+The frontend uses **Next.js, React, TailwindCSS, and TypeScript**, with a modular structure matching the backend subsystems.
 
-First, run the development server:
+---
+
+# 🛠 Required Installs
+
+Run inside the `frontend` directory:
+
+```bash
+npm install next react react-dom
+npm install -D tailwindcss@3 postcss autoprefixer
+npm install lucide-react
+npx tailwindcss init -p
+```
+
+These libraries provide:
+
+- **Next.js** — routing and React app framework  
+- **TailwindCSS v3** — styling (v3 is required since v4 causes compatibility issues)  
+- **PostCSS & Autoprefixer** — CSS transformation  
+- **Lucide-react** — icon library for UI components  
+
+---
+
+# 📁 Project Folder Structure (Frontend)
+
+This is the final agreed-upon structure, using ONLY one subsystems folder under `pages/` (Next.js routing).  
+Each subsystem will place its UI logic **inside its own folder** here.
+
+```
+frontend/
+│
+├── pages/
+│   ├── index.tsx                # Homepage (modules, hero section, navigation)
+│   ├── _app.tsx                 # Imports global styles
+│   │
+│   ├── subsystems/              # Official subsystem pages (Next.js routing)
+│   │   ├── employee-profile/
+│   │   │   └── index.tsx
+│   │   ├── leaves/
+│   │   │   └── index.tsx
+│   │   ├── payroll-configuration/
+│   │   │   └── index.tsx
+│   │   ├── payroll-execution/
+│   │   │   └── index.tsx
+│   │   ├── payroll-tracking/
+│   │   │   └── index.tsx
+│   │   ├── recruitment/
+│   │   │   └── index.tsx
+│   │   └── time-management/
+│   │       └── index.tsx
+│   │
+│
+├── components/                  # Future shared UI components
+│
+├── styles/
+│   └── globals.css              # Tailwind base/components/utilities
+│
+├── public/                      # Images + assets
+│
+├── tailwind.config.js           # Tailwind v3 config
+├── postcss.config.js            # Tailwind + autoprefixer
+├── package.json
+└── tsconfig.json
+```
+
+---
+
+# 🧩 Subsystem Pages (Placeholders)
+
+Each subsystem has a placeholder page:
+
+```
+<Subsystem Name> Coming Soon...
+```
+
+These pages match the homepage theme and are ready for feature development.
+
+Example (employees-profile/index.tsx):
+
+```tsx
+export default function EmployeeProfile() {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-950 via-blue-950 to-slate-900 text-white">
+      <h1 className="text-4xl lg:text-6xl font-light text-center">
+        Employee Profile Coming Soon...
+      </h1>
+    </div>
+  );
+}
+```
+
+All subsystem pages follow this same pattern.
+
+---
+
+# 🔗 Module Cards → Subsystem Pages
+
+The homepage modules are now linked to these routes:
+
+```
+/subsystems/employee-profile
+/subsystems/leaves
+/subsystems/payroll-configuration
+/subsystems/payroll-execution
+/subsystems/payroll-tracking
+/subsystems/recruitment
+/subsystems/time-management
+```
+
+---
+
+# ▶️ Run the Frontend
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Your app will run at:
 
-You can start editing the page by modifying `pages/index.tsx`. The page auto-updates as you edit the file.
+```
+http://localhost:3000
+```
 
-[API routes](https://nextjs.org/docs/pages/building-your-application/routing/api-routes) can be accessed on [http://localhost:3000/api/hello](http://localhost:3000/api/hello). This endpoint can be edited in `pages/api/hello.ts`.
+---
 
-The `pages/api` directory is mapped to `/api/*`. Files in this directory are treated as [API routes](https://nextjs.org/docs/pages/building-your-application/routing/api-routes) instead of React pages.
 
-This project uses [`next/font`](https://nextjs.org/docs/pages/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn-pages-router) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/pages/building-your-application/deploying) for more details.
