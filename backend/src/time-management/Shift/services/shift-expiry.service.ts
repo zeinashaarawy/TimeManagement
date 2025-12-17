@@ -32,12 +32,19 @@ export class ShiftExpiryService {
     if (status) {
       query.status = status;
     }
-    return this.shiftExpiryNotificationModel
-      .find(query)
-      .populate('shiftTemplateId')
-      .populate('scheduleAssignmentId')
-      .sort({ expiryDate: 1 })
-      .exec();
+    try {
+      const notifications = await this.shiftExpiryNotificationModel
+        .find(query)
+        .sort({ expiryDate: 1 })
+        .exec();
+      
+      // Manually populate if needed (optional - can be removed if causing issues)
+      // For now, return without populate to avoid errors
+      return notifications;
+    } catch (error) {
+      console.error('Error fetching notifications:', error);
+      throw error;
+    }
   }
 
   /**

@@ -10,16 +10,30 @@ export class PolicyService {
   ) {}
 
   async create(policyData: Partial<TimePolicy>): Promise<TimePolicyDocument> {
-    // Validate scope requirements
-    if (policyData.scope === PolicyScope.DEPARTMENT && !policyData.departmentId) {
-      throw new BadRequestException('Department ID is required for DEPARTMENT scope');
-    }
-    if (policyData.scope === PolicyScope.EMPLOYEE && !policyData.employeeId) {
-      throw new BadRequestException('Employee ID is required for EMPLOYEE scope');
-    }
+    try {
+      console.log('PolicyService.create called with:', JSON.stringify(policyData, null, 2));
+      
+      // Validate scope requirements
+      if (policyData.scope === PolicyScope.DEPARTMENT && !policyData.departmentId) {
+        throw new BadRequestException('Department ID is required for DEPARTMENT scope');
+      }
+      if (policyData.scope === PolicyScope.EMPLOYEE && !policyData.employeeId) {
+        throw new BadRequestException('Employee ID is required for EMPLOYEE scope');
+      }
 
-    const policy = new this.policyModel(policyData);
-    return policy.save();
+      const policy = new this.policyModel(policyData);
+      console.log('Policy model created, attempting to save...');
+      const savedPolicy = await policy.save();
+      console.log('Policy saved successfully with ID:', savedPolicy._id);
+      return savedPolicy;
+    } catch (error: any) {
+      console.error('Error in PolicyService.create:', error);
+      if (error.name === 'ValidationError') {
+        console.error('Validation errors:', error.errors);
+        throw new BadRequestException(`Validation error: ${error.message}`);
+      }
+      throw error;
+    }
   }
 
   async findAll(filters?: {
