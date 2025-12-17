@@ -1,53 +1,63 @@
-import axios from 'axios';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/time-management';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api';
+async function handleResponse<T>(res: Response): Promise<T> {
+  if (!res.ok) {
+    const message = (await res.text()) || res.statusText;
+    throw new Error(message);
+  }
+  return res.json() as Promise<T>;
+}
 
-const api = axios.create({
-  baseURL: API_BASE_URL,
-  headers: {
-    'Content-Type': 'application/json',
-  },
-});
+export async function getAttendance(employeeId: string, date: string) {
+  const url = `${API_BASE_URL}/attendance/${encodeURIComponent(employeeId)}?date=${encodeURIComponent(date)}`;
+  const res = await fetch(url, { method: 'GET' });
+  return handleResponse(res);
+}
 
-// Shift Types
-export const shiftTypesApi = {
-  getAll: () => api.get('/shifts/types'),
-  create: (data: any) => api.post('/shifts/types', data),
-  update: (id: string, data: any) => api.put(`/shifts/types/${id}`, data),
-  delete: (id: string) => api.delete(`/shifts/types/${id}`),
-};
+export async function getExceptions(employeeId: string) {
+  const url = `${API_BASE_URL}/exceptions/${encodeURIComponent(employeeId)}`;
+  const res = await fetch(url, { method: 'GET' });
+  return handleResponse(res);
+}
 
-// Shift Assignments
-export const shiftAssignmentsApi = {
-  getAll: (params?: any) => api.get('/shifts/assignments', { params }),
-  create: (data: any) => api.post('/shifts/assignments', data),
-  update: (id: string, data: any) => api.put(`/shifts/assignments/${id}`, data),
-  delete: (id: string) => api.delete(`/shifts/assignments/${id}`),
-  getByEmployee: (employeeId: string) => api.get(`/shifts/assignments/employee/${employeeId}`),
-  getByDepartment: (departmentId: string) => api.get(`/shifts/assignments/department/${departmentId}`),
-};
+export async function punch(employeeId: string) {
+  const res = await fetch(`${API_BASE_URL}/punch`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ employeeId }),
+  });
+  return handleResponse(res);
+}
 
-// Scheduling Rules
-export const schedulingRulesApi = {
-  getAll: () => api.get('/scheduling/rules'),
-  create: (data: any) => api.post('/scheduling/rules', data),
-  update: (id: string, data: any) => api.put(`/scheduling/rules/${id}`, data),
-  delete: (id: string) => api.delete(`/scheduling/rules/${id}`),
-};
+export async function submitException(payload: { attendanceRecordId: string; reason: string; comment?: string }) {
+  const res = await fetch(`${API_BASE_URL}/exceptions`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  return handleResponse(res);
+}
 
-// Shift Expiry Notifications
-export const shiftExpiryApi = {
-  getNotifications: () => api.get('/shifts/expiry/notifications'),
-  acknowledge: (id: string) => api.post(`/shifts/expiry/${id}/acknowledge`),
-};
+export async function getPendingExceptions() {
+  const res = await fetch(`${API_BASE_URL}/exceptions/pending`, { method: 'GET' });
+  return handleResponse(res);
+}
 
-// Attendance/Punch
-export const attendanceApi = {
-  punchIn: (data: any) => api.post('/attendance/punch/in', data),
-  punchOut: (data: any) => api.post('/attendance/punch/out', data),
-  getTodayPunches: (employeeId: string) => api.get(`/attendance/punches/${employeeId}/today`),
-  getMissedPunches: (employeeId?: string) => api.get('/attendance/missed', { params: { employeeId } }),
-};
+export async function approveException(id: string, comment: string) {
+  const res = await fetch(`${API_BASE_URL}/exceptions/${encodeURIComponent(id)}/approve`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ comment }),
+  });
+  return handleResponse(res);
+}
 
-export default api;
+export async function rejectException(id: string, comment: string) {
+  const res = await fetch(`${API_BASE_URL}/exceptions/${encodeURIComponent(id)}/reject`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ comment }),
+  });
+  return handleResponse(res);
+}
 

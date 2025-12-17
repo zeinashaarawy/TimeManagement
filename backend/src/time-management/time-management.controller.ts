@@ -95,8 +95,37 @@ export class TimeManagementController {
   }
 
   @Get('notifications/:employeeId')
-async getNotifications(@Param('employeeId') employeeId: string) {
-  return this.tmService.getNotifications(employeeId);
-}
+  async getNotifications(@Param('employeeId') employeeId: string) {
+    return this.tmService.getNotifications(employeeId);
+  }
 
+  // ------------------- GET PENDING EXCEPTIONS -------------------
+  @Get('exceptions/pending')
+  async getPendingExceptions() {
+    return this.tmService.getPendingExceptions();
+  }
+
+  // ------------------- APPROVE EXCEPTION -------------------
+  @Post('exceptions/:id/approve')
+  async approveException(
+    @Param('id') id: string,
+    @Body() body: { comment: string },
+  ) {
+    if (!body.comment) {
+      throw new BadRequestException('Comment is required for approval');
+    }
+    return this.tmService.approveException(id, body.comment);
+  }
+
+  // ------------------- REJECT EXCEPTION -------------------
+  @Post('exceptions/:id/reject')
+  async rejectException(
+    @Param('id') id: string,
+    @Body() body: { comment: string },
+  ) {
+    if (!body.comment) {
+      throw new BadRequestException('Comment is required for rejection');
+    }
+    return this.tmService.rejectException(id, body.comment);
+  }
 }

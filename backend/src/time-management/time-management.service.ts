@@ -224,4 +224,54 @@ export class TimeManagementService {
     }
     return { message: 'No missed punches detected' };
   }
+
+  // ------------------- GET PENDING EXCEPTIONS -------------------
+  async getPendingExceptions() {
+    return this.exceptionModel
+      .find({
+        status: { $in: [TimeExceptionStatus.OPEN, TimeExceptionStatus.PENDING] },
+      })
+      .populate('employeeId', 'name email')
+      .populate('attendanceRecordId')
+      .lean()
+      .exec();
+  }
+
+  // ------------------- APPROVE EXCEPTION -------------------
+  async approveException(id: string, comment: string) {
+    const exception = await this.exceptionModel.findById(id);
+    if (!exception) {
+      throw new BadRequestException('Exception not found');
+    }
+
+    exception.status = TimeExceptionStatus.APPROVED;
+    if (comment) {
+      exception.reason = exception.reason ? `${exception.reason} | Approved: ${comment}` : `Approved: ${comment}`;
+    }
+    await exception.save();
+
+    return {
+      message: 'Exception approved successfully',
+      exception,
+    };
+  }
+
+  // ------------------- REJECT EXCEPTION -------------------
+  async rejectException(id: string, comment: string) {
+    const exception = await this.exceptionModel.findById(id);
+    if (!exception) {
+      throw new BadRequestException('Exception not found');
+    }
+
+    exception.status = TimeExceptionStatus.REJECTED;
+    if (comment) {
+      exception.reason = exception.reason ? `${exception.reason} | Rejected: ${comment}` : `Rejected: ${comment}`;
+    }
+    await exception.save();
+
+    return {
+      message: 'Exception rejected successfully',
+      exception,
+    };
+  }
 }
