@@ -69,7 +69,8 @@ import type { Connection } from 'mongoose';
 
             // Wait a bit and check connection state (in case connection happens before listener)
             setTimeout(() => {
-              if (connection.readyState === 1) {
+              // readyState: 0 = disconnected, 1 = connected, 2 = connecting, 3 = disconnecting
+              if (connection.readyState === 1 as number) {
                 console.log('✅ MongoDB connected successfully!');
                 const actualDbName =
                   connection.db?.databaseName || connection.name || 'unknown';

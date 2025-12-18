@@ -1,5 +1,4 @@
 // src/employee-profile/dto/create-change-request.dto.ts
-import { SystemRole } from '../enums/employee-profile.enums';
 export class CreateChangeRequestDto {
   employeeProfileId: string; // which employee
 

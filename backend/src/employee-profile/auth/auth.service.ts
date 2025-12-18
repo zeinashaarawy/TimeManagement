@@ -13,7 +13,6 @@ import {
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { EmployeeStatus, SystemRole } from '../enums/employee-profile.enums';
-import { RegisterDto } from '../dto/register.dto';
 
 @Injectable()
 export class AuthService {
@@ -46,9 +45,12 @@ export class AuthService {
     }
 
     // ✅ Step 3: build JWT payload based on your project
+    const employeeDoc = employee as EmployeeProfileDocument & {
+      systemRole?: SystemRole;
+    };
     const payload = {
       id: employee._id,
-      role: (employee as any).systemRole,
+      role: employeeDoc.systemRole || SystemRole.DEPARTMENT_EMPLOYEE,
       username: employee.firstName + ' ' + employee.lastName,
     };
 

@@ -28,7 +28,7 @@ class AddressDto {
 export class SelfUpdateDto {
   @IsOptional()
   @IsString()
-  @Matches(/^\+?[0-9\s\-]{7,15}$/, {
+  @Matches(/^\+?[0-9\s-]{7,15}$/, {
     message: 'Phone must be 7–15 digits and valid format ✅',
   })
   phone?: string;

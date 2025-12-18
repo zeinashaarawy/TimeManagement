@@ -11,7 +11,6 @@ import {
   EmployeeSystemRole,
   EmployeeSystemRoleSchema,
 } from '../models/employee-system-role.schema';
-import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 
 @Module({
