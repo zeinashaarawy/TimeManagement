@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Inject, forwardRef } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import {
@@ -25,6 +25,7 @@ export class RepeatedLatenessService {
     private exceptionModel: Model<TimeExceptionDocument>,
     @InjectModel(EmployeeSystemRole.name)
     private employeeSystemRoleModel: Model<EmployeeSystemRoleDocument>,
+    @Inject(forwardRef(() => TimeManagementService))
     private timeManagementService: TimeManagementService,
   ) {}
 
@@ -256,9 +257,12 @@ export class RepeatedLatenessService {
     );
 
     // Also notify the HR/Manager
-    if (escalateToId !== employeeId.toString()) {
+    const escalateToIdString = escalateToId instanceof Types.ObjectId
+      ? escalateToId.toString()
+      : String(escalateToId);
+    if (escalateToIdString !== employeeId.toString()) {
       await this.timeManagementService.sendNotification(
-        escalateToId.toString(),
+        escalateToIdString,
         'REPEATED_LATENESS_ALERT',
         `Employee ${employeeId} has exceeded repeated lateness threshold: ${tracking.totalLatenessIncidents} incidents in ${periodType.toLowerCase()}. Review required.`,
       );

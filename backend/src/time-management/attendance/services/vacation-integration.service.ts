@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Inject, forwardRef } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import {
@@ -15,6 +15,7 @@ export class VacationIntegrationService {
   constructor(
     @InjectModel(AttendanceRecord.name)
     private attendanceModel: Model<AttendanceRecordDocument>,
+    @Inject(forwardRef(() => LeavesService))
     private leavesService: LeavesService,
   ) {}
 

@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 
 import { LeaveType, LeaveTypeSchema } from './models/leave-type.schema';
@@ -45,7 +45,7 @@ import { LeavesController } from './leaves.controller';
       { name: Holiday.name, schema: HolidaySchema },
     ]),
     EmployeeProfileModule,
-    TimeManagementModule,
+    forwardRef(() => TimeManagementModule), // Use forwardRef to avoid circular dependency
   ],
   controllers: [LeavesController],
   providers: [LeavesService],

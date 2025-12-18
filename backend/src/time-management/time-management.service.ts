@@ -28,6 +28,7 @@ import {
 import { PolicyEngineService } from './policy/services/policy-engine.service';
 import { ScheduleHelperService } from './attendance/services/schedule-helper.service';
 import { RepeatedLatenessService } from './attendance/services/repeated-lateness.service';
+import { forwardRef, Inject } from '@nestjs/common';
 
 @Injectable()
 export class TimeManagementService {
@@ -40,6 +41,7 @@ export class TimeManagementService {
     private readonly notificationModel: Model<NotificationLogDocument>,
     private readonly policyEngineService: PolicyEngineService,
     private readonly scheduleHelperService: ScheduleHelperService,
+    @Inject(forwardRef(() => RepeatedLatenessService))
     private readonly repeatedLatenessService: RepeatedLatenessService,
   ) {}
 

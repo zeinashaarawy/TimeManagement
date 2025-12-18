@@ -67,5 +67,5 @@ export const RepeatedLatenessTrackingSchema =
 
 // Index for efficient queries
 RepeatedLatenessTrackingSchema.index({ employeeId: 1, periodStart: -1 });
-RepeatedLatenessTrackingSchema.index({ thresholdExceeded: 1, escalated: 0 });
+RepeatedLatenessTrackingSchema.index({ thresholdExceeded: 1, escalated: -1 });
 

@@ -82,6 +82,7 @@ import {
 import { RepeatedLatenessService } from './attendance/services/repeated-lateness.service';
 import { VacationIntegrationService } from './attendance/services/vacation-integration.service';
 import { EmployeeSystemRole, EmployeeSystemRoleSchema } from '../employee-profile/models/employee-system-role.schema';
+import { forwardRef } from '@nestjs/common';
 import { LeavesModule } from '../leaves/leaves.module';
 
 @Module({
@@ -123,7 +124,7 @@ import { LeavesModule } from '../leaves/leaves.module';
     // Import feature modules
     ShiftModule, // Phase 1 - Shift Configuration & Assignment
     AttendanceModule, // Phase 2 - Attendance & Punching (exports ScheduleHelperService)
-    LeavesModule, // US 16 - Vacation Package Integration
+    forwardRef(() => LeavesModule), // US 16 - Vacation Package Integration (forwardRef to avoid circular dependency)
   ],
   controllers: [
     TimeManagementController, // Main controller for Phase 2 & 4
