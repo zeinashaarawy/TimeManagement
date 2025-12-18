@@ -10,6 +10,7 @@ import {
 import { TimeManagementService } from './time-management.service';
 import { CreatePunchDto } from './attendance/dto/create-punch.dto';
 import { UpdatePunchDto } from './attendance/dto/update-punch.dto';
+import { TimeExceptionType } from './enums/index';
 
 @Controller('time-management')
 export class TimeManagementController {
@@ -49,17 +50,20 @@ export class TimeManagementController {
   @Post('exceptions')
   async createException(
     @Body()
-    body: { employeeId: string; recordId: string; reason: string; assignedToId: string },
+    body: { employeeId: string; recordId: string; reason: string; assignedToId: string; type?: string },
   ) {
     if (!body.employeeId || !body.recordId || !body.reason || !body.assignedToId) {
       throw new BadRequestException('Missing required fields');
     }
 
+    const exceptionType = body.type ? (TimeExceptionType[body.type as keyof typeof TimeExceptionType] || undefined) : undefined;
+
     return this.tmService.createTimeException(
       body.employeeId,
       body.recordId,
       body.reason,
-      body.assignedToId, // pass the required fourth argument
+      body.assignedToId,
+      exceptionType,
     );
   }
 
@@ -99,33 +103,62 @@ export class TimeManagementController {
     return this.tmService.getNotifications(employeeId);
   }
 
-  // ------------------- GET PENDING EXCEPTIONS -------------------
-  @Get('exceptions/pending')
-  async getPendingExceptions() {
-    return this.tmService.getPendingExceptions();
-  }
-
-  // ------------------- APPROVE EXCEPTION -------------------
+  // ------------------- PHASE 4: EXCEPTION APPROVAL WORKFLOW -------------------
+  /**
+   * Approve a time exception
+   * PATCH /time-management/exceptions/:id/approve
+   */
   @Post('exceptions/:id/approve')
   async approveException(
-    @Param('id') id: string,
-    @Body() body: { comment: string },
+    @Param('id') exceptionId: string,
+    @Body() body: { approvedBy: string; notes?: string },
   ) {
-    if (!body.comment) {
-      throw new BadRequestException('Comment is required for approval');
+    if (!body.approvedBy) {
+      throw new BadRequestException('approvedBy is required');
     }
-    return this.tmService.approveException(id, body.comment);
+    return this.tmService.approveException(exceptionId, body.approvedBy, body.notes);
   }
 
-  // ------------------- REJECT EXCEPTION -------------------
+  /**
+   * Reject a time exception
+   * PATCH /time-management/exceptions/:id/reject
+   */
   @Post('exceptions/:id/reject')
   async rejectException(
-    @Param('id') id: string,
-    @Body() body: { comment: string },
+    @Param('id') exceptionId: string,
+    @Body() body: { rejectedBy: string; reason?: string },
   ) {
-    if (!body.comment) {
-      throw new BadRequestException('Comment is required for rejection');
+    if (!body.rejectedBy) {
+      throw new BadRequestException('rejectedBy is required');
     }
-    return this.tmService.rejectException(id, body.comment);
+    return this.tmService.rejectException(exceptionId, body.rejectedBy, body.reason);
+  }
+
+  /**
+   * Get all exceptions (for managers to review)
+   * GET /time-management/exceptions
+   */
+  @Get('exceptions')
+  async getAllExceptions(
+    @Query('status') status?: string,
+    @Query('assignedTo') assignedTo?: string,
+    @Query('employeeId') employeeId?: string,
+  ) {
+    return this.tmService.getAllExceptions(status, assignedTo, employeeId);
+  }
+
+  /**
+   * Escalate exception if not reviewed
+   * POST /time-management/exceptions/:id/escalate
+   */
+  @Post('exceptions/:id/escalate')
+  async escalateException(
+    @Param('id') exceptionId: string,
+    @Body() body: { escalatedTo: string; reason?: string },
+  ) {
+    if (!body.escalatedTo) {
+      throw new BadRequestException('escalatedTo is required');
+    }
+    return this.tmService.escalateException(exceptionId, body.escalatedTo, body.reason);
   }
 }

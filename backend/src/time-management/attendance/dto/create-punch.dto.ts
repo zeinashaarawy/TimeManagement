@@ -1,5 +1,5 @@
 import { IsString, IsDate, IsOptional, IsIn, isEnum, IsEnum } from 'class-validator'
-import { PunchType } from 'src/time-management/enums';
+import { PunchType } from '../../enums';
 
 export class CreatePunchDto {
   @IsString()

@@ -14,25 +14,34 @@ export class PolicyController {
 
   @Post()
   async create(@Body() policyData: any) {
-    // Map user-friendly field names to schema field names
-    const mappedData: Partial<TimePolicy> = { ...policyData };
-    
-    // Map latenessRule fields
-    if (policyData.latenessRule) {
-      const latenessRule: any = { ...policyData.latenessRule };
-      // Support both naming conventions
-      if (latenessRule.graceMinutes !== undefined && latenessRule.gracePeriodMinutes === undefined) {
-        latenessRule.gracePeriodMinutes = latenessRule.graceMinutes;
-        delete latenessRule.graceMinutes;
+    try {
+      console.log('Creating policy with data:', JSON.stringify(policyData, null, 2));
+      
+      // Map user-friendly field names to schema field names
+      const mappedData: Partial<TimePolicy> = { ...policyData };
+      
+      // Map latenessRule fields
+      if (policyData.latenessRule) {
+        const latenessRule: any = { ...policyData.latenessRule };
+        // Support both naming conventions
+        if (latenessRule.graceMinutes !== undefined && latenessRule.gracePeriodMinutes === undefined) {
+          latenessRule.gracePeriodMinutes = latenessRule.graceMinutes;
+          delete latenessRule.graceMinutes;
+        }
+        if (latenessRule.penaltyPerMinute !== undefined && latenessRule.deductionPerMinute === undefined) {
+          latenessRule.deductionPerMinute = latenessRule.penaltyPerMinute;
+          delete latenessRule.penaltyPerMinute;
+        }
+        mappedData.latenessRule = latenessRule;
       }
-      if (latenessRule.penaltyPerMinute !== undefined && latenessRule.deductionPerMinute === undefined) {
-        latenessRule.deductionPerMinute = latenessRule.penaltyPerMinute;
-        delete latenessRule.penaltyPerMinute;
-      }
-      mappedData.latenessRule = latenessRule;
+      
+      const result = await this.policyService.create(mappedData);
+      console.log('Policy created successfully:', result._id);
+      return result;
+    } catch (error: any) {
+      console.error('Error creating policy:', error);
+      throw error;
     }
-    
-    return this.policyService.create(mappedData);
   }
 
   @Get()
