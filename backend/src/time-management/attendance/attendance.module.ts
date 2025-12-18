@@ -15,6 +15,12 @@ import {
   TimeExceptionSchema,
 } from './schemas/time-exception.schema';
 import { Punch, PunchSchema } from './schemas/punch.schema';
+import { ScheduleHelperService } from './services/schedule-helper.service';
+import { ShiftTemplate, ShiftTemplateSchema } from '../Shift/schemas/shift.schema';
+import {
+  ScheduleAssignment,
+  ScheduleAssignmentSchema,
+} from '../Shift/schemas/schedule-assignment.schema';
 
 @Module({
   imports: [
@@ -26,9 +32,12 @@ import { Punch, PunchSchema } from './schemas/punch.schema';
         schema: AttendanceCorrectionRequestSchema,
       },
       { name: TimeException.name, schema: TimeExceptionSchema },
+      { name: ShiftTemplate.name, schema: ShiftTemplateSchema },
+      { name: ScheduleAssignment.name, schema: ScheduleAssignmentSchema },
     ]),
   ],
-  providers: [AttendanceService],
+  providers: [AttendanceService, ScheduleHelperService],
   controllers: [AttendanceController],
+  exports: [ScheduleHelperService],
 })
 export class AttendanceModule {}

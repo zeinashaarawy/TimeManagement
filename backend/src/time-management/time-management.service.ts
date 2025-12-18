@@ -26,6 +26,8 @@ import {
   NotificationLogDocument,
 } from './notifications/schemas/notification-log.schema';
 import { PolicyEngineService } from './policy/services/policy-engine.service';
+import { ScheduleHelperService } from './attendance/services/schedule-helper.service';
+import { RepeatedLatenessService } from './attendance/services/repeated-lateness.service';
 
 @Injectable()
 export class TimeManagementService {
@@ -37,6 +39,8 @@ export class TimeManagementService {
     @InjectModel(NotificationLog.name)
     private readonly notificationModel: Model<NotificationLogDocument>,
     private readonly policyEngineService: PolicyEngineService,
+    private readonly scheduleHelperService: ScheduleHelperService,
+    private readonly repeatedLatenessService: RepeatedLatenessService,
   ) {}
 
   // ------------------- RECORD A PUNCH -------------------
@@ -116,6 +120,120 @@ export class TimeManagementService {
           'MISSED_PUNCH',
           `Missed punch detected: only ${punchesToday} punch(es) on ${startOfDay.toDateString()}`,
         );
+      }
+    }
+
+    // ------------------- COMPUTE POLICY RESULTS & SEND ALERTS -------------------
+    // Only compute if we have both IN and OUT punches (or if it's an OUT punch)
+    const hasInOutPunches = savedRecord.punches.some((p) => p.type === 'IN') && 
+                            savedRecord.punches.some((p) => p.type === 'OUT');
+    
+    if (hasInOutPunches) {
+      try {
+        // Get scheduled times for this employee on this date
+        const scheduled = await this.scheduleHelperService.getScheduledTimes(
+          employeeObjectId,
+          startOfDay,
+        );
+
+        if (scheduled.startTime && scheduled.scheduledMinutes) {
+          // Compute policy results
+          const result = await this.policyEngineService.computePolicyResults(
+            savedRecord,
+            startOfDay,
+            scheduled.startTime,
+            scheduled.endTime,
+            scheduled.scheduledMinutes,
+          );
+
+          // Save computed results
+          await this.policyEngineService.saveComputedResults(result);
+
+          // Send alerts for lateness
+          if (result.latenessMinutes > 0) {
+            const existingLateAlert = await this.exceptionModel.findOne({
+              employeeId: employeeObjectId,
+              type: 'LATE',
+              createdAt: { $gte: startOfDay, $lte: endOfDay },
+            });
+
+            if (!existingLateAlert) {
+              await this.sendNotification(
+                dto.employeeId,
+                'LATE_ARRIVAL',
+                `Late arrival detected: ${result.latenessMinutes} minutes late on ${startOfDay.toDateString()}`,
+              );
+
+              // Create exception for late arrival
+              const lateException = await this.exceptionModel.create({
+                employeeId: employeeObjectId,
+                attendanceRecordId: savedRecord._id,
+                type: 'LATE',
+                status: 'OPEN',
+                assignedTo: employeeObjectId,
+                reason: `Employee arrived ${result.latenessMinutes} minutes late`,
+              });
+
+              // Track repeated lateness (US 12)
+              try {
+                await this.repeatedLatenessService.trackLatenessIncident(
+                  employeeObjectId,
+                  lateException._id,
+                  result.latenessMinutes,
+                  startOfDay,
+                );
+
+                // Check thresholds and escalate if needed
+                const policy = await this.policyEngineService.getApplicablePolicy(
+                  employeeObjectId,
+                  startOfDay,
+                );
+                if (policy) {
+                  await this.repeatedLatenessService.checkAndEscalateThresholds(
+                    employeeObjectId,
+                    policy,
+                  );
+                }
+              } catch (error) {
+                console.error(
+                  `Error tracking repeated lateness for employee ${dto.employeeId}:`,
+                  error,
+                );
+                // Don't block punch recording if tracking fails
+              }
+            }
+          }
+
+          // Send alerts for early leave / short-time
+          if (result.shortTimeMinutes > 0) {
+            const existingEarlyLeaveAlert = await this.exceptionModel.findOne({
+              employeeId: employeeObjectId,
+              type: 'EARLY_LEAVE',
+              createdAt: { $gte: startOfDay, $lte: endOfDay },
+            });
+
+            if (!existingEarlyLeaveAlert) {
+              await this.sendNotification(
+                dto.employeeId,
+                'EARLY_LEAVE',
+                `Early leave detected: ${result.shortTimeMinutes} minutes short on ${startOfDay.toDateString()}`,
+              );
+
+              // Create exception for early leave
+              await this.exceptionModel.create({
+                employeeId: employeeObjectId,
+                attendanceRecordId: savedRecord._id,
+                type: 'EARLY_LEAVE',
+                status: 'OPEN',
+                assignedTo: employeeObjectId,
+                reason: `Employee left ${result.shortTimeMinutes} minutes early (short-time)`,
+              });
+            }
+          }
+        }
+      } catch (error) {
+        // Log error but don't fail the punch recording
+        console.error('Error computing policy results or sending alerts:', error);
       }
     }
 

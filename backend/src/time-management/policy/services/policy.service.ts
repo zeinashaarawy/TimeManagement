@@ -34,6 +34,7 @@ export class PolicyService {
       );
     }
 
+    try {
       const policy = new this.policyModel(policyData);
       console.log('Policy model created, attempting to save...');
       const savedPolicy = await policy.save();

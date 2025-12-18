@@ -159,9 +159,11 @@ export class AttendanceService {
   /**
    * Calculate worked minutes from punches
    * Matches IN/OUT pairs and sums the time differences
+   * Supports multiple punch policies: MULTIPLE, FIRST_LAST, ONLY_FIRST
    */
   private calculateWorkedMinutes(
     punches: Array<{ type: string; time: Date }>,
+    punchPolicy: string = 'FIRST_LAST',
   ): number {
     if (punches.length === 0) return 0;
 
@@ -169,27 +171,66 @@ export class AttendanceService {
     const sortedPunches = [...punches].sort(
       (a, b) => a.time.getTime() - b.time.getTime(),
     );
-    let totalMinutes = 0;
-    let lastInTime: Date | null = null;
 
-    for (const punch of sortedPunches) {
-      // Handle both enum and string types
-      const punchType = punch.type.toString().toUpperCase();
-      if (punchType === 'IN' || punchType === PunchType.IN) {
-        lastInTime = punch.time;
-      } else if (
-        (punchType === 'OUT' || punchType === PunchType.OUT) &&
-        lastInTime
-      ) {
-        const diffMs = punch.time.getTime() - lastInTime.getTime();
-        const minutes = Math.floor(diffMs / (1000 * 60));
-        if (minutes > 0) {
-          totalMinutes += minutes;
-        }
-        lastInTime = null; // Reset after pairing
+    // Handle ONLY_FIRST policy - only count first IN/OUT pair
+    if (punchPolicy === 'ONLY_FIRST') {
+      const firstIn = sortedPunches.find(
+        (p) => p.type.toString().toUpperCase() === 'IN' || p.type === PunchType.IN,
+      );
+      const firstOut = sortedPunches.find(
+        (p) => p.type.toString().toUpperCase() === 'OUT' || p.type === PunchType.OUT,
+      );
+      if (firstIn && firstOut && firstOut.time > firstIn.time) {
+        const diffMs = firstOut.time.getTime() - firstIn.time.getTime();
+        return Math.floor(diffMs / (1000 * 60));
       }
+      return 0;
     }
 
-    return totalMinutes;
+    // Handle FIRST_LAST policy - use first IN and last OUT
+    if (punchPolicy === 'FIRST_LAST') {
+      const firstIn = sortedPunches.find(
+        (p) => p.type.toString().toUpperCase() === 'IN' || p.type === PunchType.IN,
+      );
+      const lastOut = [...sortedPunches]
+        .reverse()
+        .find(
+          (p) => p.type.toString().toUpperCase() === 'OUT' || p.type === PunchType.OUT,
+        );
+      if (firstIn && lastOut && lastOut.time > firstIn.time) {
+        const diffMs = lastOut.time.getTime() - firstIn.time.getTime();
+        return Math.floor(diffMs / (1000 * 60));
+      }
+      return 0;
+    }
+
+    // Handle MULTIPLE policy - sum all IN/OUT pairs
+    if (punchPolicy === 'MULTIPLE') {
+      let totalMinutes = 0;
+      let lastInTime: Date | null = null;
+
+      for (const punch of sortedPunches) {
+        // Handle both enum and string types
+        const punchType = punch.type.toString().toUpperCase();
+        if (punchType === 'IN' || punchType === PunchType.IN) {
+          lastInTime = punch.time;
+        } else if (
+          (punchType === 'OUT' || punchType === PunchType.OUT) &&
+          lastInTime
+        ) {
+          const diffMs = punch.time.getTime() - lastInTime.getTime();
+          const minutes = Math.floor(diffMs / (1000 * 60));
+          if (minutes > 0) {
+            totalMinutes += minutes;
+          }
+          lastInTime = null; // Reset after pairing
+        }
+      }
+
+      return totalMinutes;
+    }
+
+    // Default: FIRST_LAST behavior
+    return this.calculateWorkedMinutes(sortedPunches, 'FIRST_LAST');
   }
 }

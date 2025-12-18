@@ -7,14 +7,18 @@ import {
   Body,
   Param,
   Query,
+  UseGuards,
 } from '@nestjs/common';
 import { PolicyService } from '../services/policy.service';
 import { PolicyEngineService } from '../services/policy-engine.service';
 import { TimePolicy, PolicyScope } from '../schemas/time-policy.schema';
 import { Types } from 'mongoose';
 import { ParseObjectIdPipe } from '../../../common/pipes/parse-object-id.pipe';
+import { RolesGuard } from '../../Shift/guards/roles.guard';
+import { Roles } from '../../Shift/decorators/roles.decorator';
 
 @Controller('policies')
+@UseGuards(RolesGuard)
 export class PolicyController {
   constructor(
     private readonly policyService: PolicyService,
@@ -22,6 +26,7 @@ export class PolicyController {
   ) {}
 
   @Post()
+  @Roles('HR Manager', 'SYSTEM_ADMIN')
   async create(@Body() policyData: any) {
     // Map user-friendly field names to schema field names
     const mappedData: Partial<TimePolicy> = { ...policyData };
@@ -51,6 +56,7 @@ export class PolicyController {
   }
 
   @Get()
+  @Roles('HR Manager', 'SYSTEM_ADMIN', 'HR_ADMIN', 'department head', 'EMPLOYEE', 'department employee')
   async findAll(
     @Query('scope') scope?: PolicyScope,
     @Query('active') active?: string,
@@ -72,6 +78,7 @@ export class PolicyController {
   }
 
   @Put(':id')
+  @Roles('HR Manager', 'SYSTEM_ADMIN')
   async update(
     @Param('id', ParseObjectIdPipe) id: Types.ObjectId,
     @Body() updateData: any,
@@ -104,12 +111,14 @@ export class PolicyController {
   }
 
   @Delete(':id')
+  @Roles('HR Manager', 'SYSTEM_ADMIN')
   async delete(@Param('id', ParseObjectIdPipe) id: Types.ObjectId) {
     await this.policyService.delete(id);
     return { message: 'Policy deleted successfully' };
   }
 
   @Post(':id/assign/employee')
+  @Roles('HR Manager', 'SYSTEM_ADMIN', 'HR_ADMIN')
   async assignToEmployee(
     @Param('id', ParseObjectIdPipe) policyId: Types.ObjectId,
     @Body('employeeId', ParseObjectIdPipe) employeeId: Types.ObjectId,
@@ -118,6 +127,7 @@ export class PolicyController {
   }
 
   @Post(':id/assign/department')
+  @Roles('HR Manager', 'SYSTEM_ADMIN', 'HR_ADMIN')
   async assignToDepartment(
     @Param('id', ParseObjectIdPipe) policyId: Types.ObjectId,
     @Body('departmentId', ParseObjectIdPipe) departmentId: Types.ObjectId,
@@ -126,6 +136,7 @@ export class PolicyController {
   }
 
   @Post('compute/:attendanceRecordId')
+  @Roles('HR Manager', 'SYSTEM_ADMIN', 'HR_ADMIN', 'Payroll Manager', 'Payroll Specialist')
   async computePolicyResults(
     @Param('attendanceRecordId', ParseObjectIdPipe)
     attendanceRecordId: Types.ObjectId,

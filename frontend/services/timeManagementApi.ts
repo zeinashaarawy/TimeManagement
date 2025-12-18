@@ -474,8 +474,40 @@ export const getAssignment = (id: string) =>
  * Update assignment status
  * PATCH /time-management/scheduling/assignments/:id/status
  */
-export const updateAssignmentStatus = (id: string, data: { status: string }) => 
+export const updateAssignmentStatus = (id: string, data: { status: string; reason?: string }) => 
   TimeManagementAPI.patch(`/scheduling/assignments/${id}/status`, data);
+
+/**
+ * Renew/Extend assignment
+ * PATCH /time-management/scheduling/assignments/:id/renew
+ */
+export const renewAssignment = (id: string, data: { effectiveTo: string; reason?: string }) =>
+  TimeManagementAPI.patch(`/scheduling/assignments/${id}/renew`, data);
+
+/**
+ * Get shift expiry notifications
+ * GET /time-management/notifications/shifts
+ */
+export const getShiftExpiryNotifications = (status?: string) => {
+  const params = status ? `?status=${status}` : '';
+  return TimeManagementAPI.get(`/notifications/shifts${params}`);
+};
+
+/**
+ * Manually trigger expiry detection
+ * POST /time-management/notifications/shifts/detect
+ */
+export const triggerExpiryDetection = (daysBeforeExpiry?: number) => {
+  const params = daysBeforeExpiry ? `?daysBeforeExpiry=${daysBeforeExpiry}` : '';
+  return TimeManagementAPI.post(`/notifications/shifts/detect${params}`);
+};
+
+/**
+ * Resolve shift expiry notification
+ * PATCH /time-management/notifications/shifts/:id/resolve
+ */
+export const resolveShiftExpiryNotification = (id: string, data: { resolutionNotes?: string }) =>
+  TimeManagementAPI.patch(`/notifications/shifts/${id}/resolve`, data);
 
 // ==========================================
 // ATTENDANCE ENDPOINTS (Alternative)

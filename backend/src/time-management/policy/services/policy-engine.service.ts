@@ -27,6 +27,8 @@ import {
   OvertimeStatus,
 } from '../schemas/overtime-record.schema';
 import { TimeExceptionStatus, TimeExceptionType } from '../../enums/index';
+import { Holiday, HolidayDocument } from '../../holiday/schemas/holiday.schema';
+import { VacationIntegrationService } from '../../attendance/services/vacation-integration.service';
 
 export interface ComputedResult {
   workedMinutes: number;
@@ -51,6 +53,9 @@ export class PolicyEngineService {
     private penaltyModel: Model<PenaltyRecordDocument>,
     @InjectModel(OvertimeRecord.name)
     private overtimeModel: Model<OvertimeRecordDocument>,
+    @InjectModel(Holiday.name)
+    private holidayModel: Model<HolidayDocument>,
+    private vacationIntegrationService: VacationIntegrationService,
   ) {}
 
   /**
@@ -116,14 +121,40 @@ export class PolicyEngineService {
       );
     }
 
+    // Check if employee is on approved leave (US 16 - Vacation Integration)
+    const isOnLeave = await this.vacationIntegrationService.isEmployeeOnLeave(
+      attendanceRecord.employeeId,
+      recordDate,
+    );
+
+    // If on leave, exclude from worked minutes calculation
+    if (isOnLeave.onLeave) {
+      // Return zero worked minutes for leave days
+      return {
+        workedMinutes: 0,
+        overtimeMinutes: 0,
+        latenessMinutes: 0,
+        shortTimeMinutes: 0,
+        penalties: [],
+        overtime: [],
+        appliedPolicy: policy,
+      };
+    }
+
     // Get approved exceptions for this record
     const approvedExceptions = await this.exceptionModel.find({
       attendanceRecordId: attendanceRecord._id,
       status: TimeExceptionStatus.APPROVED,
     });
 
+    // Get punch policy from shift template if available (default: FIRST_LAST)
+    const punchPolicy = 'FIRST_LAST'; // TODO: Get from shift template/assignment
+    
     // Calculate worked minutes from punches
-    let workedMinutes = this.calculateWorkedMinutes(attendanceRecord.punches);
+    let workedMinutes = this.calculateWorkedMinutes(
+      attendanceRecord.punches,
+      punchPolicy,
+    );
 
     // Apply rounding
     workedMinutes = this.applyRounding(
@@ -169,6 +200,9 @@ export class PolicyEngineService {
     // Check if it's a weekend
     const isWeekend = this.isWeekend(recordDate, policy.weekendRule);
 
+    // Check if it's a holiday or rest day
+    const isHoliday = await this.isHoliday(recordDate);
+
     // Apply exceptions
     const exceptionAdjustments = this.applyExceptions(approvedExceptions, {
       workedMinutes,
@@ -187,14 +221,14 @@ export class PolicyEngineService {
       recordDate,
     );
 
-    // Compute overtime records
+    // Compute overtime records (holidays affect overtime multipliers)
     const overtimeRecords = await this.computeOvertime(
       attendanceRecord,
       policy,
       overtimeMinutes,
       workedMinutes,
       scheduledMinutes || 0,
-      isWeekend,
+      isWeekend || isHoliday, // Holidays are treated like weekends for overtime
       exceptionAdjustments,
       recordDate,
     );
@@ -212,29 +246,65 @@ export class PolicyEngineService {
 
   /**
    * Calculate worked minutes from punches
+   * Supports multiple punch policies: MULTIPLE, FIRST_LAST, ONLY_FIRST
    */
   private calculateWorkedMinutes(
     punches: Array<{ type: string; time: Date }>,
+    punchPolicy: string = 'FIRST_LAST',
   ): number {
     if (punches.length === 0) return 0;
 
     const sortedPunches = [...punches].sort(
       (a, b) => a.time.getTime() - b.time.getTime(),
     );
-    let totalMinutes = 0;
-    let lastInTime: Date | null = null;
 
-    for (const punch of sortedPunches) {
-      if (punch.type === 'IN') {
-        lastInTime = punch.time;
-      } else if (punch.type === 'OUT' && lastInTime) {
-        const diffMs = punch.time.getTime() - lastInTime.getTime();
-        totalMinutes += Math.floor(diffMs / (1000 * 60));
-        lastInTime = null;
+    // Handle ONLY_FIRST policy - only count first IN/OUT pair
+    if (punchPolicy === 'ONLY_FIRST') {
+      const firstIn = sortedPunches.find((p) => p.type === 'IN');
+      const firstOut = sortedPunches.find((p) => p.type === 'OUT');
+      if (firstIn && firstOut && firstOut.time > firstIn.time) {
+        const diffMs = firstOut.time.getTime() - firstIn.time.getTime();
+        return Math.floor(diffMs / (1000 * 60));
       }
+      return 0;
     }
 
-    return totalMinutes;
+    // Handle FIRST_LAST policy - use first IN and last OUT
+    if (punchPolicy === 'FIRST_LAST') {
+      const firstIn = sortedPunches.find((p) => p.type === 'IN');
+      const lastOut = [...sortedPunches]
+        .reverse()
+        .find((p) => p.type === 'OUT');
+      if (firstIn && lastOut && lastOut.time > firstIn.time) {
+        const diffMs = lastOut.time.getTime() - firstIn.time.getTime();
+        return Math.floor(diffMs / (1000 * 60));
+      }
+      return 0;
+    }
+
+    // Handle MULTIPLE policy - sum all IN/OUT pairs
+    if (punchPolicy === 'MULTIPLE') {
+      let totalMinutes = 0;
+      let lastInTime: Date | null = null;
+
+      for (const punch of sortedPunches) {
+        if (punch.type === 'IN') {
+          lastInTime = punch.time;
+        } else if (punch.type === 'OUT' && lastInTime) {
+          const diffMs = punch.time.getTime() - lastInTime.getTime();
+          const minutes = Math.floor(diffMs / (1000 * 60));
+          if (minutes > 0) {
+            totalMinutes += minutes;
+          }
+          lastInTime = null; // Reset after pairing
+        }
+      }
+
+      return totalMinutes;
+    }
+
+    // Default: FIRST_LAST behavior
+    return this.calculateWorkedMinutes(sortedPunches, 'FIRST_LAST');
   }
 
   /**
@@ -539,6 +609,29 @@ export class PolicyEngineService {
       scheduledEndTime,
       scheduledMinutes,
     );
+  }
+
+  /**
+   * Check if a date is a holiday
+   */
+  private async isHoliday(date: Date): Promise<boolean> {
+    const dateOnly = new Date(date);
+    dateOnly.setHours(0, 0, 0, 0);
+    const dateEnd = new Date(date);
+    dateEnd.setHours(23, 59, 59, 999);
+
+    const holiday = await this.holidayModel
+      .findOne({
+        active: true,
+        startDate: { $lte: dateEnd },
+        $or: [
+          { endDate: null, startDate: { $gte: dateOnly } },
+          { endDate: { $gte: dateOnly } },
+        ],
+      })
+      .exec();
+
+    return !!holiday;
   }
 
   /**

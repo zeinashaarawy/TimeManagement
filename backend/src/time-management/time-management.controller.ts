@@ -6,11 +6,14 @@ import {
   Get,
   Query,
   BadRequestException,
+  UseGuards,
 } from '@nestjs/common';
 import { TimeManagementService } from './time-management.service';
 import { CreatePunchDto } from './attendance/dto/create-punch.dto';
 import { UpdatePunchDto } from './attendance/dto/update-punch.dto';
 import { TimeExceptionType } from './enums/index';
+import { RolesGuard } from './Shift/guards/roles.guard';
+import { Roles } from './Shift/decorators/roles.decorator';
 
 @Controller('time-management')
 export class TimeManagementController {
@@ -55,6 +58,7 @@ export class TimeManagementController {
       recordId: string;
       reason: string;
       assignedToId: string;
+      type?: string;
     },
   ) {
     if (
@@ -121,6 +125,8 @@ export class TimeManagementController {
    * PATCH /time-management/exceptions/:id/approve
    */
   @Post('exceptions/:id/approve')
+  @UseGuards(RolesGuard)
+  @Roles('HR Manager', 'SYSTEM_ADMIN', 'HR_ADMIN', 'department head')
   async approveException(
     @Param('id') exceptionId: string,
     @Body() body: { approvedBy: string; notes?: string },
@@ -140,6 +146,8 @@ export class TimeManagementController {
    * PATCH /time-management/exceptions/:id/reject
    */
   @Post('exceptions/:id/reject')
+  @UseGuards(RolesGuard)
+  @Roles('HR Manager', 'SYSTEM_ADMIN', 'HR_ADMIN', 'department head')
   async rejectException(
     @Param('id') exceptionId: string,
     @Body() body: { rejectedBy: string; reason?: string },
@@ -159,6 +167,8 @@ export class TimeManagementController {
    * GET /time-management/exceptions
    */
   @Get('exceptions')
+  @UseGuards(RolesGuard)
+  @Roles('HR Manager', 'SYSTEM_ADMIN', 'HR_ADMIN', 'department head')
   async getAllExceptions(
     @Query('status') status?: string,
     @Query('assignedTo') assignedTo?: string,
@@ -172,6 +182,8 @@ export class TimeManagementController {
    * POST /time-management/exceptions/:id/escalate
    */
   @Post('exceptions/:id/escalate')
+  @UseGuards(RolesGuard)
+  @Roles('HR Manager', 'SYSTEM_ADMIN', 'HR_ADMIN', 'department head')
   async escalateException(
     @Param('id') exceptionId: string,
     @Body() body: { escalatedTo: string; reason?: string },

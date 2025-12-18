@@ -56,6 +56,15 @@ export type LatenessRuleConfig = {
   deductionPerMinute: number; // Penalty amount per minute late
   cumulativeThresholdMinutes?: number; // Total lateness before additional penalty
   maxDeductionPerDay?: number; // Maximum deduction per day (cap)
+  // Repeated Lateness Tracking (US 12)
+  repeatedLatenessThreshold?: {
+    incidentsPerWeek?: number; // Max late incidents per week before escalation
+    incidentsPerMonth?: number; // Max late incidents per month before escalation
+    totalMinutesPerWeek?: number; // Max total minutes late per week
+    totalMinutesPerMonth?: number; // Max total minutes late per month
+    autoEscalate?: boolean; // Auto-escalate when threshold exceeded
+    escalateToRole?: string; // Role to escalate to (HR_ADMIN, HR_MANAGER, etc.)
+  };
 };
 
 /**

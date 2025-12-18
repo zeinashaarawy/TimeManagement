@@ -6,13 +6,17 @@ import {
   Param,
   Query,
   BadRequestException,
+  UseGuards,
 } from '@nestjs/common';
 import { PayrollService } from '../services/payroll.service';
 import { PrePayrollService } from '../services/pre-payroll.service';
 import { Types } from 'mongoose';
 import { ParseObjectIdPipe } from '../../../common/pipes/parse-object-id.pipe';
+import { RolesGuard } from '../../Shift/guards/roles.guard';
+import { Roles } from '../../Shift/decorators/roles.decorator';
 
 @Controller('payroll')
+@UseGuards(RolesGuard)
 export class PayrollController {
   constructor(
     private readonly payrollService: PayrollService,
@@ -20,6 +24,7 @@ export class PayrollController {
   ) {}
 
   @Post('sync')
+  @Roles('HR Manager', 'SYSTEM_ADMIN', 'Payroll Manager', 'Payroll Specialist')
   async syncPayroll(
     @Body()
     body: {
@@ -45,16 +50,19 @@ export class PayrollController {
   }
 
   @Get('sync-status/:id')
+  @Roles('HR Manager', 'SYSTEM_ADMIN', 'Payroll Manager', 'Payroll Specialist', 'HR_ADMIN')
   async getSyncStatus(@Param('id', ParseObjectIdPipe) id: Types.ObjectId) {
     return this.payrollService.getSyncStatus(id);
   }
 
   @Post('sync/:id/retry')
+  @Roles('HR Manager', 'SYSTEM_ADMIN', 'Payroll Manager', 'Payroll Specialist')
   async retrySync(@Param('id', ParseObjectIdPipe) id: Types.ObjectId) {
     return this.payrollService.retryPayrollSync(id);
   }
 
   @Post('pre-payroll/validate')
+  @Roles('HR Manager', 'SYSTEM_ADMIN', 'Payroll Manager', 'Payroll Specialist', 'HR_ADMIN')
   async validatePrePayroll(
     @Body() body: { periodStart: string; periodEnd: string },
   ) {
@@ -65,6 +73,7 @@ export class PayrollController {
   }
 
   @Post('pre-payroll/closure')
+  @Roles('HR Manager', 'SYSTEM_ADMIN', 'Payroll Manager')
   async runPrePayrollClosure(
     @Body()
     body: {
@@ -85,6 +94,7 @@ export class PayrollController {
   }
 
   @Get('payload')
+  @Roles('HR Manager', 'SYSTEM_ADMIN', 'Payroll Manager', 'Payroll Specialist', 'HR_ADMIN')
   async generatePayload(
     @Query('periodStart') periodStart: string,
     @Query('periodEnd') periodEnd: string,

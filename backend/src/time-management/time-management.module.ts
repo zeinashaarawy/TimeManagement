@@ -73,6 +73,16 @@ import {
 import { PayrollService } from './payroll/services/payroll.service';
 import { PrePayrollService } from './payroll/services/pre-payroll.service';
 import { PayrollController } from './payroll/controllers/payroll.controller';
+import { ExceptionEscalationSchedulerService } from './exception/services/exception-escalation-scheduler.service';
+import { PayrollSyncSchedulerService } from './payroll/services/payroll-sync-scheduler.service';
+import {
+  RepeatedLatenessTracking,
+  RepeatedLatenessTrackingSchema,
+} from './attendance/schemas/repeated-lateness-tracking.schema';
+import { RepeatedLatenessService } from './attendance/services/repeated-lateness.service';
+import { VacationIntegrationService } from './attendance/services/vacation-integration.service';
+import { EmployeeSystemRole, EmployeeSystemRoleSchema } from '../employee-profile/models/employee-system-role.schema';
+import { LeavesModule } from '../leaves/leaves.module';
 
 @Module({
   imports: [
@@ -95,6 +105,10 @@ import { PayrollController } from './payroll/controllers/payroll.controller';
         name: AttendanceCorrectionRequest.name,
         schema: AttendanceCorrectionRequestSchema,
       },
+      {
+        name: RepeatedLatenessTracking.name,
+        schema: RepeatedLatenessTrackingSchema,
+      },
       // Phase 3 - Policies & Rule Enforcement
       { name: TimePolicy.name, schema: TimePolicySchema },
       { name: PenaltyRecord.name, schema: PenaltyRecordSchema },
@@ -103,10 +117,13 @@ import { PayrollController } from './payroll/controllers/payroll.controller';
       { name: PayrollSyncLog.name, schema: PayrollSyncLogSchema },
       // Notifications
       { name: NotificationLog.name, schema: NotificationLogSchema },
+      // Employee System Roles (for escalation)
+      { name: EmployeeSystemRole.name, schema: EmployeeSystemRoleSchema },
     ]),
     // Import feature modules
     ShiftModule, // Phase 1 - Shift Configuration & Assignment
-    AttendanceModule, // Phase 2 - Attendance & Punching
+    AttendanceModule, // Phase 2 - Attendance & Punching (exports ScheduleHelperService)
+    LeavesModule, // US 16 - Vacation Package Integration
   ],
   controllers: [
     TimeManagementController, // Main controller for Phase 2 & 4
@@ -122,6 +139,11 @@ import { PayrollController } from './payroll/controllers/payroll.controller';
     ReportingService, // Phase 5
     PayrollService, // Phase 5
     PrePayrollService, // Phase 5
+    ExceptionEscalationSchedulerService, // Phase 4 - Auto-escalation scheduler
+    PayrollSyncSchedulerService, // Phase 5 - Daily payroll sync scheduler
+    RepeatedLatenessService, // US 12 - Repeated lateness tracking & escalation
+    VacationIntegrationService, // US 16 - Vacation Package Integration
+    // Note: PolicyEngineService already uses VacationIntegrationService via dependency injection
   ],
   exports: [
     TimeManagementService,
