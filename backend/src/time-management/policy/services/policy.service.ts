@@ -34,8 +34,19 @@ export class PolicyService {
       );
     }
 
-    const policy = new this.policyModel(policyData);
-    return policy.save();
+      const policy = new this.policyModel(policyData);
+      console.log('Policy model created, attempting to save...');
+      const savedPolicy = await policy.save();
+      console.log('Policy saved successfully with ID:', savedPolicy._id);
+      return savedPolicy;
+    } catch (error: any) {
+      console.error('Error in PolicyService.create:', error);
+      if (error.name === 'ValidationError') {
+        console.error('Validation errors:', error.errors);
+        throw new BadRequestException(`Validation error: ${error.message}`);
+      }
+      throw error;
+    }
   }
 
   async findAll(filters?: {

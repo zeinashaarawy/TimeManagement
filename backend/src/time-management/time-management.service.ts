@@ -173,6 +173,24 @@ export class TimeManagementService {
       await record.save();
     }
 
+    // Recalculate if totalWorkMinutes is 0 but we have punches (for old data)
+    if (record.totalWorkMinutes === 0 && record.punches.length >= 2) {
+      // Ensure punch times are Date objects
+      const punchesWithDates = record.punches.map(p => ({
+        type: p.type,
+        time: p.time instanceof Date ? p.time : new Date(p.time),
+      }));
+      record.totalWorkMinutes = this.calculateWorkedMinutes(punchesWithDates);
+      
+      // Update missed punch flag
+      const hasInPunch = punchesWithDates.some(p => p.type === 'IN');
+      const hasOutPunch = punchesWithDates.some(p => p.type === 'OUT');
+      record.hasMissedPunch = !hasInPunch || !hasOutPunch;
+      
+      // Save the recalculated values
+      await record.save();
+    }
+
     return {
       _id: record._id,
       employeeId: record.employeeId,
@@ -191,12 +209,13 @@ export class TimeManagementService {
     recordId: string,
     reason: string,
     assignedToId: string,
+    type?: TimeExceptionType,
   ) {
     const exception = new this.exceptionModel({
       employeeId: new Types.ObjectId(employeeId),
       attendanceRecordId: new Types.ObjectId(recordId),
       reason,
-      type: TimeExceptionType.MISSED_PUNCH,
+      type: type || TimeExceptionType.MISSED_PUNCH,
       status: TimeExceptionStatus.OPEN,
       assignedTo: new Types.ObjectId(assignedToId), // required field
     });

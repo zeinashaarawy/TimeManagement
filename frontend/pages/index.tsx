@@ -12,8 +12,14 @@ import {
   Menu,
   X,
   ChevronRight,
-  Sparkles
+  Sparkles,
+  User,
+  LogOut,
+  Eye,
+  EyeOff
 } from 'lucide-react';
+import { login, register } from '../services/authApi';
+import { storeAuthToken, clearAuth, getCurrentUser, getCurrentUserRole, type UserRole } from '../utils/auth';
 
 // MODULE DATA WITH ROUTES
 const modules = [
@@ -71,12 +77,121 @@ const modules = [
 export default function Home() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [isLogin, setIsLogin] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
+  const [currentUser, setCurrentUser] = useState<{ id: string; role: UserRole; username: string } | null>(null);
+
+  // Auth form state
+  const [loginForm, setLoginForm] = useState({
+    employeeNumber: '',
+    password: '',
+  });
+
+  const [registerForm, setRegisterForm] = useState({
+    employeeNumber: '',
+    password: '',
+    confirmPassword: '',
+    role: 'department employee' as UserRole,
+    firstName: '',
+    lastName: '',
+    nationalId: '',
+    dateOfHire: '',
+    city: '',
+    street: '',
+  });
 
   useEffect(() => {
     const handler = () => setScrolled(window.scrollY > 20);
     window.addEventListener("scroll", handler);
     return () => window.removeEventListener("scroll", handler);
   }, []);
+
+  useEffect(() => {
+    // Check if user is already logged in
+    const user = getCurrentUser();
+    setCurrentUser(user);
+  }, []);
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+    setSuccess(null);
+
+    try {
+      const response = await login(loginForm);
+      storeAuthToken(response.data.access_token, response.data.payload);
+      setCurrentUser(response.data.payload);
+      setSuccess('Login successful!');
+      setTimeout(() => {
+        setShowAuthModal(false);
+        setLoginForm({ employeeNumber: '', password: '' });
+      }, 1000);
+    } catch (err: any) {
+      setError(err.response?.data?.message || err.message || 'Login failed');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRegister = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+    setSuccess(null);
+
+    if (registerForm.password !== registerForm.confirmPassword) {
+      setError('Passwords do not match');
+      setLoading(false);
+      return;
+    }
+
+    try {
+      await register({
+        employeeNumber: registerForm.employeeNumber,
+        password: registerForm.password,
+        role: registerForm.role,
+        firstName: registerForm.firstName,
+        lastName: registerForm.lastName,
+        nationalId: registerForm.nationalId,
+        dateOfHire: registerForm.dateOfHire,
+        address: {
+          city: registerForm.city,
+          street: registerForm.street,
+        },
+      });
+      setSuccess('Registration successful! Please login.');
+      setTimeout(() => {
+        setIsLogin(true);
+        setRegisterForm({
+          employeeNumber: '',
+          password: '',
+          confirmPassword: '',
+          role: 'department employee',
+          firstName: '',
+          lastName: '',
+          nationalId: '',
+          dateOfHire: '',
+          city: '',
+          street: '',
+        });
+      }, 1500);
+    } catch (err: any) {
+      setError(err.response?.data?.message || err.message || 'Registration failed');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleLogout = () => {
+    clearAuth();
+    setCurrentUser(null);
+    setShowAuthModal(false);
+  };
 
   const scrollTo = (id: string) => {
     document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
@@ -120,15 +235,39 @@ export default function Home() {
               ))}
             </div>
 
-            {/* LOGIN BUTTON */}
+            {/* LOGIN/USER BUTTON */}
             <div className="hidden lg:block">
-              <button className="relative group">
-                <div className="absolute inset-0 bg-gradient-to-r from-blue-600 to-cyan-600 rounded-xl blur-sm group-hover:blur-md transition-all" />
-                <div className="relative px-6 py-2.5 bg-gradient-to-r from-blue-600 to-cyan-600 rounded-xl flex items-center gap-2">
-                  Login
-                  <ChevronRight className="w-4 h-4" />
+              {currentUser ? (
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2 px-4 py-2 bg-white/5 border border-white/10 rounded-xl">
+                    <User className="w-4 h-4" />
+                    <span className="text-sm">{currentUser.username}</span>
+                    <span className="text-xs text-gray-400">({currentUser.role})</span>
+                  </div>
+                  <button
+                    onClick={handleLogout}
+                    className="px-4 py-2 bg-red-500/10 border border-red-500/20 rounded-xl hover:bg-red-500/20 transition-all flex items-center gap-2 text-sm"
+                  >
+                    <LogOut className="w-4 h-4" />
+                    Logout
+                  </button>
                 </div>
-              </button>
+              ) : (
+                <button
+                  onClick={() => {
+                    setShowAuthModal(true);
+                    setIsLogin(true);
+                  }}
+                  className="relative group"
+                >
+                  <div className="absolute inset-0 bg-gradient-to-r from-blue-600 to-cyan-600 rounded-xl blur-sm group-hover:blur-md transition-all" />
+                  <div className="relative px-6 py-2.5 bg-gradient-to-r from-blue-600 to-cyan-600 rounded-xl flex items-center gap-2">
+                    <LogIn className="w-4 h-4" />
+                    Login
+                    <ChevronRight className="w-4 h-4" />
+                  </div>
+                </button>
+              )}
             </div>
 
             {/* MOBILE MENU BUTTON */}
@@ -153,9 +292,33 @@ export default function Home() {
                 {item[0].toUpperCase() + item.slice(1)}
               </button>
             ))}
-            <button className="w-full px-6 py-2.5 bg-gradient-to-r from-blue-600 to-cyan-600 rounded-xl">
-              Login
-            </button>
+            {currentUser ? (
+              <div className="space-y-2">
+                <div className="px-4 py-2 bg-white/5 border border-white/10 rounded-xl text-sm">
+                  <div className="flex items-center gap-2">
+                    <User className="w-4 h-4" />
+                    <span>{currentUser.username}</span>
+                  </div>
+                  <div className="text-xs text-gray-400 mt-1">{currentUser.role}</div>
+                </div>
+                <button
+                  onClick={handleLogout}
+                  className="w-full px-6 py-2.5 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400 hover:bg-red-500/20 transition-all"
+                >
+                  Logout
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => {
+                  setShowAuthModal(true);
+                  setIsLogin(true);
+                }}
+                className="w-full px-6 py-2.5 bg-gradient-to-r from-blue-600 to-cyan-600 rounded-xl"
+              >
+                Login
+              </button>
+            )}
           </div>
         )}
       </nav>
@@ -346,6 +509,262 @@ export default function Home() {
 
         </div>
       </footer>
+
+      {/* AUTH MODAL */}
+      {showAuthModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+          <div className="bg-gradient-to-br from-slate-900 via-blue-950 to-slate-900 border border-white/10 rounded-3xl p-8 max-w-md w-full max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-2xl font-light">
+                {isLogin ? 'Login' : 'Register'}
+              </h2>
+              <button
+                onClick={() => {
+                  setShowAuthModal(false);
+                  setError(null);
+                  setSuccess(null);
+                }}
+                className="p-2 hover:bg-white/10 rounded-lg transition-all"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Toggle Login/Register */}
+            <div className="flex gap-2 mb-6 bg-white/5 rounded-lg p-1">
+              <button
+                onClick={() => {
+                  setIsLogin(true);
+                  setError(null);
+                  setSuccess(null);
+                }}
+                className={`flex-1 py-2 rounded-md transition-all ${
+                  isLogin
+                    ? 'bg-gradient-to-r from-blue-600 to-cyan-600'
+                    : 'hover:bg-white/5'
+                }`}
+              >
+                Login
+              </button>
+              <button
+                onClick={() => {
+                  setIsLogin(false);
+                  setError(null);
+                  setSuccess(null);
+                }}
+                className={`flex-1 py-2 rounded-md transition-all ${
+                  !isLogin
+                    ? 'bg-gradient-to-r from-blue-600 to-cyan-600'
+                    : 'hover:bg-white/5'
+                }`}
+              >
+                Register
+              </button>
+            </div>
+
+            {/* Error/Success Messages */}
+            {error && (
+              <div className="mb-4 p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400 text-sm">
+                {error}
+              </div>
+            )}
+            {success && (
+              <div className="mb-4 p-3 bg-green-500/10 border border-green-500/20 rounded-lg text-green-400 text-sm">
+                {success}
+              </div>
+            )}
+
+            {/* Login Form */}
+            {isLogin ? (
+              <form onSubmit={handleLogin} className="space-y-4">
+                <div>
+                  <label className="block text-sm text-gray-400 mb-2">Employee Number</label>
+                  <input
+                    type="text"
+                    required
+                    value={loginForm.employeeNumber}
+                    onChange={(e) => setLoginForm({ ...loginForm, employeeNumber: e.target.value })}
+                    className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/10 focus:outline-none focus:border-blue-500/50 text-white"
+                    placeholder="Enter employee number"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-400 mb-2">Password</label>
+                  <div className="relative">
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      required
+                      value={loginForm.password}
+                      onChange={(e) => setLoginForm({ ...loginForm, password: e.target.value })}
+                      className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/10 focus:outline-none focus:border-blue-500/50 text-white pr-10"
+                      placeholder="Enter password"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white"
+                    >
+                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full px-6 py-3 bg-gradient-to-r from-blue-600 to-cyan-600 rounded-lg hover:from-blue-500 hover:to-cyan-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  {loading ? 'Logging in...' : (
+                    <>
+                      <LogIn className="w-4 h-4" />
+                      Login
+                    </>
+                  )}
+                </button>
+              </form>
+            ) : (
+              <form onSubmit={handleRegister} className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm text-gray-400 mb-2">First Name</label>
+                    <input
+                      type="text"
+                      required
+                      value={registerForm.firstName}
+                      onChange={(e) => setRegisterForm({ ...registerForm, firstName: e.target.value })}
+                      className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/10 focus:outline-none focus:border-blue-500/50 text-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm text-gray-400 mb-2">Last Name</label>
+                    <input
+                      type="text"
+                      required
+                      value={registerForm.lastName}
+                      onChange={(e) => setRegisterForm({ ...registerForm, lastName: e.target.value })}
+                      className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/10 focus:outline-none focus:border-blue-500/50 text-white"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-400 mb-2">Employee Number</label>
+                  <input
+                    type="text"
+                    required
+                    value={registerForm.employeeNumber}
+                    onChange={(e) => setRegisterForm({ ...registerForm, employeeNumber: e.target.value })}
+                    className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/10 focus:outline-none focus:border-blue-500/50 text-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-400 mb-2">National ID</label>
+                  <input
+                    type="text"
+                    required
+                    value={registerForm.nationalId}
+                    onChange={(e) => setRegisterForm({ ...registerForm, nationalId: e.target.value })}
+                    className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/10 focus:outline-none focus:border-blue-500/50 text-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-400 mb-2">Role</label>
+                  <select
+                    required
+                    value={registerForm.role}
+                    onChange={(e) => setRegisterForm({ ...registerForm, role: e.target.value as UserRole })}
+                    className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/10 focus:outline-none focus:border-blue-500/50 text-white appearance-none cursor-pointer"
+                    style={{
+                      backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23ffffff' d='M6 9L1 4h10z'/%3E%3C/svg%3E")`,
+                      backgroundRepeat: 'no-repeat',
+                      backgroundPosition: 'right 1rem center',
+                      paddingRight: '2.5rem'
+                    }}
+                  >
+                    <option value="department employee" className="bg-slate-800 text-white">Employee</option>
+                    <option value="department head" className="bg-slate-800 text-white">Manager</option>
+                    <option value="HR Manager" className="bg-slate-800 text-white">HR Manager</option>
+                    <option value="HR Employee" className="bg-slate-800 text-white">HR Employee</option>
+                    <option value="System Admin" className="bg-slate-800 text-white">System Admin</option>
+                    <option value="Legal & Policy Admin" className="bg-slate-800 text-white">Legal & Policy Admin</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-400 mb-2">Date of Hire</label>
+                  <input
+                    type="date"
+                    required
+                    value={registerForm.dateOfHire}
+                    onChange={(e) => setRegisterForm({ ...registerForm, dateOfHire: e.target.value })}
+                    className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/10 focus:outline-none focus:border-blue-500/50 text-white"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm text-gray-400 mb-2">City</label>
+                    <input
+                      type="text"
+                      required
+                      value={registerForm.city}
+                      onChange={(e) => setRegisterForm({ ...registerForm, city: e.target.value })}
+                      className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/10 focus:outline-none focus:border-blue-500/50 text-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm text-gray-400 mb-2">Street</label>
+                    <input
+                      type="text"
+                      required
+                      value={registerForm.street}
+                      onChange={(e) => setRegisterForm({ ...registerForm, street: e.target.value })}
+                      className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/10 focus:outline-none focus:border-blue-500/50 text-white"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-400 mb-2">Password</label>
+                  <div className="relative">
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      required
+                      value={registerForm.password}
+                      onChange={(e) => setRegisterForm({ ...registerForm, password: e.target.value })}
+                      className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/10 focus:outline-none focus:border-blue-500/50 text-white pr-10"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white"
+                    >
+                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-400 mb-2">Confirm Password</label>
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    required
+                    value={registerForm.confirmPassword}
+                    onChange={(e) => setRegisterForm({ ...registerForm, confirmPassword: e.target.value })}
+                    className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/10 focus:outline-none focus:border-blue-500/50 text-white"
+                  />
+                </div>
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full px-6 py-3 bg-gradient-to-r from-blue-600 to-cyan-600 rounded-lg hover:from-blue-500 hover:to-cyan-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  {loading ? 'Registering...' : (
+                    <>
+                      <UserPlus className="w-4 h-4" />
+                      Register
+                    </>
+                  )}
+                </button>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
 
     </div>
   );

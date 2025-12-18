@@ -1,3 +1,20 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Ensure select dropdowns are visible and functional */
+select {
+  color: white;
+}
+
+select option {
+  background-color: #1e293b;
+  color: white;
+  padding: 0.5rem;
+}
+
+/* For browsers that support it */
+select:focus option:checked {
+  background-color: #3b82f6;
+  color: white;
+}

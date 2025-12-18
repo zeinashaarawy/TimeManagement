@@ -10,6 +10,7 @@ import {
 import { TimeManagementService } from './time-management.service';
 import { CreatePunchDto } from './attendance/dto/create-punch.dto';
 import { UpdatePunchDto } from './attendance/dto/update-punch.dto';
+import { TimeExceptionType } from './enums/index';
 
 @Controller('time-management')
 export class TimeManagementController {
@@ -65,11 +66,14 @@ export class TimeManagementController {
       throw new BadRequestException('Missing required fields');
     }
 
+    const exceptionType = body.type ? (TimeExceptionType[body.type as keyof typeof TimeExceptionType] || undefined) : undefined;
+
     return this.tmService.createTimeException(
       body.employeeId,
       body.recordId,
       body.reason,
-      body.assignedToId, // pass the required fourth argument
+      body.assignedToId,
+      exceptionType,
     );
   }
 
