@@ -1,6 +1,6 @@
-import { Schema, Prop, SchemaFactory } from "@nestjs/mongoose";
-import { Types } from "mongoose";
-import { HydratedDocument } from "mongoose";
+import { Schema, Prop, SchemaFactory } from '@nestjs/mongoose';
+import { Types } from 'mongoose';
+import { HydratedDocument } from 'mongoose';
 
 export enum PayrollSyncStatus {
   PENDING = 'PENDING',
@@ -40,7 +40,7 @@ export class PayrollSyncLog {
     timestamp: Date;
   }>;
 
-  @Prop({ type: Types.ObjectId,  required: false })
+  @Prop({ type: Types.ObjectId, required: false })
   initiatedBy?: Types.ObjectId;
 
   @Prop({ type: Date })
@@ -59,5 +59,5 @@ export class PayrollSyncLog {
   lastError?: string;
 }
 
-export const PayrollSyncLogSchema = SchemaFactory.createForClass(PayrollSyncLog);
-
+export const PayrollSyncLogSchema =
+  SchemaFactory.createForClass(PayrollSyncLog);

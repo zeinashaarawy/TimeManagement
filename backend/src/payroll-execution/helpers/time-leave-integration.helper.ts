@@ -161,7 +161,8 @@ export class TimeLeaveIntegrationHelper {
     if (overtimeHours <= 2) {
       overtimePay = overtimeHours * hourlyRate * 1.25;
     } else {
-      overtimePay = (2 * hourlyRate * 1.25) + ((overtimeHours - 2) * hourlyRate * 1.5);
+      overtimePay =
+        2 * hourlyRate * 1.25 + (overtimeHours - 2) * hourlyRate * 1.5;
     }
 
     return Math.round(overtimePay * 100) / 100;

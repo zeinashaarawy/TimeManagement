@@ -8,22 +8,26 @@ import { CreateDisputeDto } from './dto/create-dispute.dto';
 import { UpdateDisputeStatusDto } from './dto/update-dispute-status.dto';
 import { CreateRefundDto } from './dto/create-refund.dto';
 import { UpdateRefundStatusDto } from './dto/update-refund-status.dto';
-import { ClaimStatus, DisputeStatus, RefundStatus } from './enums/payroll-tracking-enum';
-import { paySlip, PayslipDocument } from '../payroll-execution/models/payslip.schema';
-import { payrollRuns, payrollRunsDocument } from '../payroll-execution/models/payrollRuns.schema';
-import { employeePayrollDetails, employeePayrollDetailsDocument } from '../payroll-execution/models/employeePayrollDetails.schema';
 import {
-  claims,
-  claimsDocument,
-} from './models/claims.schema';
+  ClaimStatus,
+  DisputeStatus,
+  RefundStatus,
+} from './enums/payroll-tracking-enum';
 import {
-  disputes,
-  disputesDocument,
-} from './models/disputes.schema';
+  paySlip,
+  PayslipDocument,
+} from '../payroll-execution/models/payslip.schema';
 import {
-  refunds,
-  refundsDocument,
-} from './models/refunds.schema';
+  payrollRuns,
+  payrollRunsDocument,
+} from '../payroll-execution/models/payrollRuns.schema';
+import {
+  employeePayrollDetails,
+  employeePayrollDetailsDocument,
+} from '../payroll-execution/models/employeePayrollDetails.schema';
+import { claims, claimsDocument } from './models/claims.schema';
+import { disputes, disputesDocument } from './models/disputes.schema';
+import { refunds, refundsDocument } from './models/refunds.schema';
 
 @Injectable()
 export class PayrollTrackingService {
@@ -47,9 +51,8 @@ export class PayrollTrackingService {
     private readonly employeePayrollDetailsModel: Model<employeePayrollDetailsDocument>,
   ) {}
 
-  
   // HEALTH CHECK
-  
+
   getHealth() {
     return {
       subsystem: 'payroll-tracking',
@@ -58,12 +61,13 @@ export class PayrollTrackingService {
     };
   }
 
-  
   // CLAIMS
-  
+
   async createClaim(dto: CreateClaimDto): Promise<claims> {
     // basic sanity: prevent duplicate claimId
-    const existing = await this.claimModel.findOne({ claimId: dto.claimId }).lean();
+    const existing = await this.claimModel
+      .findOne({ claimId: dto.claimId })
+      .lean();
     if (existing) {
       throw new Error(`Claim with id ${dto.claimId} already exists`);
     }
@@ -94,7 +98,10 @@ export class PayrollTrackingService {
       .lean()) as any;
   }
 
-  async updateClaimStatus(id: string, dto: UpdateClaimStatusDto): Promise<claims> {
+  async updateClaimStatus(
+    id: string,
+    dto: UpdateClaimStatusDto,
+  ): Promise<claims> {
     const claim = await this.claimModel.findById(id);
     if (!claim) {
       throw new Error('Claim not found');
@@ -118,18 +125,22 @@ export class PayrollTrackingService {
     return claim;
   }
 
- 
   // DISPUTES
-  
+
   async createDispute(dto: CreateDisputeDto): Promise<disputes> {
-    const existing = await this.disputeModel.findOne({ disputeId: dto.disputeId }).lean();
-    if (existing) throw new Error(`Dispute with id ${dto.disputeId} already exists`);
+    const existing = await this.disputeModel
+      .findOne({ disputeId: dto.disputeId })
+      .lean();
+    if (existing)
+      throw new Error(`Dispute with id ${dto.disputeId} already exists`);
 
     const created = await this.disputeModel.create({
       ...dto,
       employeeId: new Types.ObjectId(dto.employeeId),
       payslipId: new Types.ObjectId(dto.payslipId),
-      financeStaffId: dto.financeStaffId ? new Types.ObjectId(dto.financeStaffId) : undefined,
+      financeStaffId: dto.financeStaffId
+        ? new Types.ObjectId(dto.financeStaffId)
+        : undefined,
       status: DisputeStatus.UNDER_REVIEW,
     });
 
@@ -148,7 +159,10 @@ export class PayrollTrackingService {
       .lean()) as any;
   }
 
-  async updateDisputeStatus(id: string, dto: UpdateDisputeStatusDto): Promise<disputes> {
+  async updateDisputeStatus(
+    id: string,
+    dto: UpdateDisputeStatusDto,
+  ): Promise<disputes> {
     const dispute = await this.disputeModel.findById(id);
     if (!dispute) throw new Error('Dispute not found');
 
@@ -166,9 +180,8 @@ export class PayrollTrackingService {
     return dispute;
   }
 
-  
   // REFUNDS
-  
+
   async createRefund(dto: CreateRefundDto): Promise<refunds> {
     if (!dto.claimId && !dto.disputeId) {
       throw new Error('Refund must be linked to either a claim or a dispute.');
@@ -188,7 +201,9 @@ export class PayrollTrackingService {
       claimId: dto.claimId ? new Types.ObjectId(dto.claimId) : undefined,
       disputeId: dto.disputeId ? new Types.ObjectId(dto.disputeId) : undefined,
       employeeId: new Types.ObjectId(dto.employeeId),
-      financeStaffId: dto.financeStaffId ? new Types.ObjectId(dto.financeStaffId) : undefined,
+      financeStaffId: dto.financeStaffId
+        ? new Types.ObjectId(dto.financeStaffId)
+        : undefined,
       refundDetails: {
         description: dto.refundDetails.description,
         amount: dto.refundDetails.amount,
@@ -213,7 +228,10 @@ export class PayrollTrackingService {
       .lean()) as any;
   }
 
-  async updateRefundStatus(id: string, dto: UpdateRefundStatusDto): Promise<refunds> {
+  async updateRefundStatus(
+    id: string,
+    dto: UpdateRefundStatusDto,
+  ): Promise<refunds> {
     const refund = await this.refundModel.findById(id);
     if (!refund) {
       throw new Error('Refund not found');
@@ -228,8 +246,6 @@ export class PayrollTrackingService {
     await refund.save();
     return refund;
   }
-
-
 
   async getPayslipById(id: string): Promise<paySlip> {
     const payslip = await this.payslipModel
@@ -269,7 +285,9 @@ export class PayrollTrackingService {
       .lean()) as any;
   }
 
-  async getPayslipStatus(id: string): Promise<{ status: string; paymentStatus: string }> {
+  async getPayslipStatus(
+    id: string,
+  ): Promise<{ status: string; paymentStatus: string }> {
     const payslip = await this.payslipModel.findById(id).lean();
     if (!payslip) {
       throw new Error('Payslip not found');
@@ -419,8 +437,8 @@ export class PayrollTrackingService {
     // Get employee payroll details for employees in this department
     // Note: This requires joining with EmployeeProfile to filter by department
     // For now, we'll return payroll run summaries
-    let totalGrossSalary = 0;
-    let totalDeductions = 0;
+    const totalGrossSalary = 0;
+    const totalDeductions = 0;
     let totalNetPay = 0;
 
     payrollRunsList.forEach((run: any) => {
@@ -429,7 +447,8 @@ export class PayrollTrackingService {
 
     return {
       departmentId,
-      totalEmployees: payrollRunsList.length > 0 ? payrollRunsList[0].employees || 0 : 0,
+      totalEmployees:
+        payrollRunsList.length > 0 ? payrollRunsList[0].employees || 0 : 0,
       totalGrossSalary,
       totalDeductions,
       totalNetPay,
@@ -437,7 +456,10 @@ export class PayrollTrackingService {
     };
   }
 
-  async getMonthEndSummary(month: number, year: number): Promise<{
+  async getMonthEndSummary(
+    month: number,
+    year: number,
+  ): Promise<{
     month: number;
     year: number;
     totalPayrollRuns: number;
@@ -546,7 +568,10 @@ export class PayrollTrackingService {
     };
   }
 
-  async getTaxReport(startDate?: Date, endDate?: Date): Promise<{
+  async getTaxReport(
+    startDate?: Date,
+    endDate?: Date,
+  ): Promise<{
     period: { start: Date; end: Date };
     totalTaxCollected: number;
     totalEmployees: number;
@@ -584,12 +609,16 @@ export class PayrollTrackingService {
         end: endDate || new Date(),
       },
       totalTaxCollected,
-      totalEmployees: new Set(payslips.map((p: any) => p.employeeId.toString())).size,
+      totalEmployees: new Set(payslips.map((p: any) => p.employeeId.toString()))
+        .size,
       breakdown,
     };
   }
 
-  async getInsuranceReport(startDate?: Date, endDate?: Date): Promise<{
+  async getInsuranceReport(
+    startDate?: Date,
+    endDate?: Date,
+  ): Promise<{
     period: { start: Date; end: Date };
     totalInsuranceContributions: number;
     totalEmployees: number;
@@ -627,12 +656,16 @@ export class PayrollTrackingService {
         end: endDate || new Date(),
       },
       totalInsuranceContributions,
-      totalEmployees: new Set(payslips.map((p: any) => p.employeeId.toString())).size,
+      totalEmployees: new Set(payslips.map((p: any) => p.employeeId.toString()))
+        .size,
       breakdown,
     };
   }
 
-  async getBenefitsReport(startDate?: Date, endDate?: Date): Promise<{
+  async getBenefitsReport(
+    startDate?: Date,
+    endDate?: Date,
+  ): Promise<{
     period: { start: Date; end: Date };
     totalBenefitsPaid: number;
     totalEmployees: number;
@@ -670,7 +703,8 @@ export class PayrollTrackingService {
         end: endDate || new Date(),
       },
       totalBenefitsPaid,
-      totalEmployees: new Set(payslips.map((p: any) => p.employeeId.toString())).size,
+      totalEmployees: new Set(payslips.map((p: any) => p.employeeId.toString()))
+        .size,
       breakdown,
     };
   }

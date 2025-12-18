@@ -9,7 +9,10 @@ import {
   HttpCode,
   HttpStatus,
   UseGuards,
+  Req,
+  BadRequestException,
 } from '@nestjs/common';
+import { Types } from 'mongoose';
 import {
   ApiTags,
   ApiOperation,
@@ -24,6 +27,7 @@ import { CreateScheduleAssignmentDto } from '../dto/create-schedule-assignment.d
 import { BulkAssignShiftDto } from '../dto/bulk-assign-shift.dto';
 import { QueryAssignmentsDto } from '../dto/query-assignments.dto';
 import { UpdateAssignmentStatusDto } from '../dto/update-assignment-status.dto';
+import { RenewAssignmentDto } from '../dto/renew-assignment.dto';
 import { ScheduleAssignmentResponseDto } from '../dto/schedule-assignment-response.dto';
 import { Roles } from '../decorators/roles.decorator';
 import { RolesGuard } from '../guards/roles.guard';
@@ -42,7 +46,7 @@ export class ScheduleAssignmentController {
    */
   @Post('shifts/assign')
   @HttpCode(HttpStatus.CREATED)
-  @Roles('HR Manager', 'System Admin')
+  @Roles('HR_ADMIN', 'HR Manager', 'SYSTEM_ADMIN')
   @ApiBearerAuth()
   @ApiOperation({
     summary: 'Assign shift template to employee/department/position',
@@ -65,8 +69,46 @@ export class ScheduleAssignmentController {
     status: 409,
     description: 'Assignment conflicts with existing active assignment',
   })
-  async assign(@Body() createDto: CreateScheduleAssignmentDto) {
-    return await this.scheduleAssignmentService.assign(createDto);
+  async assign(
+    @Body() createDto: CreateScheduleAssignmentDto,
+    @Req() req: any,
+  ) {
+    try {
+      // Automatically set assignedBy from authenticated user if not provided
+      if (!createDto.assignedBy) {
+        const userId = req.user?.id || req.headers['x-user-id'];
+        if (!userId) {
+          throw new BadRequestException(
+            'Unable to determine current user. Please ensure you are logged in.',
+          );
+        }
+        // Validate that userId is a valid MongoDB ObjectId
+        if (!Types.ObjectId.isValid(userId)) {
+          throw new BadRequestException(
+            `Invalid user ID format: "${userId}". User ID must be a valid MongoDB ObjectId (24 hexadecimal characters).`,
+          );
+        }
+        createDto.assignedBy = userId;
+      }
+
+      console.log('Creating shift assignment:', {
+        shiftTemplateId: createDto.shiftTemplateId,
+        employeeId: createDto.employeeId,
+        departmentId: createDto.departmentId,
+        positionId: createDto.positionId,
+        assignedBy: createDto.assignedBy,
+      });
+      return await this.scheduleAssignmentService.assign(createDto);
+    } catch (error) {
+      console.error('Controller error in assign:', error);
+      console.error('Error details:', {
+        message: error?.message,
+        stack: error?.stack,
+        name: error?.name,
+      });
+      // Re-throw the error so NestJS can handle it properly
+      throw error;
+    }
   }
 
   /**
@@ -74,7 +116,7 @@ export class ScheduleAssignmentController {
    * POST /time-management/shifts/assign/bulk
    */
   @Post('shifts/assign/bulk')
-  @Roles('HR Manager', 'System Admin')
+  @Roles('HR_ADMIN', 'HR Manager', 'SYSTEM_ADMIN')
   @ApiBearerAuth()
   @ApiOperation({
     summary: 'Bulk assign shift template to multiple employees',
@@ -179,6 +221,7 @@ export class ScheduleAssignmentController {
    * GET /time-management/scheduling/assignments
    */
   @Get('scheduling/assignments')
+  @Roles('HR Manager', 'SYSTEM_ADMIN', 'EMPLOYEE', 'department employee')
   @ApiOperation({ summary: 'Query schedule assignments with filters' })
   @ApiQuery({
     name: 'employeeId',
@@ -247,7 +290,7 @@ export class ScheduleAssignmentController {
    * PATCH /time-management/scheduling/assignments/:id/status
    */
   @Patch('scheduling/assignments/:id/status')
-  @Roles('HR Manager', 'System Admin')
+  @Roles('HR_ADMIN', 'HR Manager', 'SYSTEM_ADMIN')
   @ApiBearerAuth()
   @ApiOperation({
     summary: 'Update assignment status',
@@ -275,5 +318,44 @@ export class ScheduleAssignmentController {
     @Body() updateDto: UpdateAssignmentStatusDto,
   ) {
     return await this.scheduleAssignmentService.updateStatus(id, updateDto);
+  }
+
+  /**
+   * Renew/Extend an assignment by updating its effectiveTo date
+   * PATCH /time-management/scheduling/assignments/:id/renew
+   */
+  @Patch('scheduling/assignments/:id/renew')
+  @Roles('HR_ADMIN', 'HR Manager', 'SYSTEM_ADMIN')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Renew/Extend shift assignment',
+    description:
+      'Extend the expiry date (effectiveTo) of a shift assignment. Used when HR wants to renew an expiring assignment.',
+  })
+  @ApiParam({ name: 'id', description: 'Assignment ID' })
+  @ApiBody({ type: RenewAssignmentDto })
+  @ApiResponse({
+    status: 200,
+    description: 'Assignment renewed successfully',
+    type: ScheduleAssignmentResponseDto,
+  })
+  @ApiResponse({ status: 404, description: 'Assignment not found' })
+  @ApiResponse({
+    status: 400,
+    description: 'Invalid date or validation failed',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden - HR Manager or System Admin role required',
+  })
+  async renewAssignment(
+    @Param('id') id: string,
+    @Body() renewDto: RenewAssignmentDto,
+  ) {
+    return await this.scheduleAssignmentService.renewAssignment(
+      id,
+      new Date(renewDto.effectiveTo),
+      renewDto.reason,
+    );
   }
 }

@@ -45,9 +45,18 @@ import { HolidaySchema, Holiday } from './holiday/schemas/holiday.schema';
 import { ShiftModule } from './Shift/shift.module';
 import { AttendanceModule } from './attendance/attendance.module';
 // Phase 3 - Policy schemas
-import { TimePolicy, TimePolicySchema } from './policy/schemas/time-policy.schema';
-import { PenaltyRecord, PenaltyRecordSchema } from './policy/schemas/penalty-record.schema';
-import { OvertimeRecord, OvertimeRecordSchema } from './policy/schemas/overtime-record.schema';
+import {
+  TimePolicy,
+  TimePolicySchema,
+} from './policy/schemas/time-policy.schema';
+import {
+  PenaltyRecord,
+  PenaltyRecordSchema,
+} from './policy/schemas/penalty-record.schema';
+import {
+  OvertimeRecord,
+  OvertimeRecordSchema,
+} from './policy/schemas/overtime-record.schema';
 // Phase 3 - Policy services
 import { PolicyService } from './policy/services/policy.service';
 import { PolicyEngineService } from './policy/services/policy-engine.service';
@@ -57,7 +66,10 @@ import { PolicyController } from './policy/controllers/policy.controller';
 import { ReportingService } from './reporting/services/reporting.service';
 import { ReportingController } from './reporting/controllers/reporting.controller';
 // Phase 5 - Payroll schemas and services
-import { PayrollSyncLog, PayrollSyncLogSchema } from './payroll/schemas/payroll-sync-log.schema';
+import {
+  PayrollSyncLog,
+  PayrollSyncLogSchema,
+} from './payroll/schemas/payroll-sync-log.schema';
 import { PayrollService } from './payroll/services/payroll.service';
 import { PrePayrollService } from './payroll/services/pre-payroll.service';
 import { PayrollController } from './payroll/controllers/payroll.controller';
@@ -65,8 +77,7 @@ import { PayrollController } from './payroll/controllers/payroll.controller';
 @Module({
   imports: [
     ConfigModule.forRoot(), // Load .env file
-    // Note: MongoDB connection is handled in AppModule, not here
-    // Removing duplicate connection to avoid conflicts
+    // MongoDB connection is handled in app.module.ts - do NOT create duplicate connection here
     ScheduleModule.forRoot(), // Enable scheduled tasks for Phase 1 shift expiry notifications
     MongooseModule.forFeature([
       // Phase 1 - Shift Configuration & Assignment

@@ -5,4 +5,3 @@ export class RespondOfferDto {
   @IsEnum(OfferResponseStatus)
   response: OfferResponseStatus;
 }
-

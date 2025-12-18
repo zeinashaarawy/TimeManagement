@@ -12,4 +12,3 @@ export * from './respond-offer.dto';
 export * from './create-referral.dto';
 export * from './rejection-template.dto';
 export * from './analytics-query.dto';
-

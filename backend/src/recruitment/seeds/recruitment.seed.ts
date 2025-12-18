@@ -4,20 +4,37 @@ import { getModelToken } from '@nestjs/mongoose';
 import type { Model } from 'mongoose';
 import { Types } from 'mongoose';
 
-
-import { JobTemplate, JobTemplateDocument } from '../models/job-template.schema';
-import { JobRequisition, JobRequisitionDocument } from '../models/job-requisition.schema';
+import {
+  JobTemplate,
+  JobTemplateDocument,
+} from '../models/job-template.schema';
+import {
+  JobRequisition,
+  JobRequisitionDocument,
+} from '../models/job-requisition.schema';
 import { Application, ApplicationDocument } from '../models/application.schema';
 import { Interview, InterviewDocument } from '../models/interview.schema';
 import { Offer, OfferDocument } from '../models/offer.schema';
 import { Onboarding, OnboardingDocument } from '../models/onboarding.schema';
 import { Document, DocumentDocument } from '../models/document.schema';
 import { Contract, ContractDocument } from '../models/contract.schema';
-import { ApplicationStatusHistory, ApplicationStatusHistoryDocument } from '../models/application-history.schema';
-import { AssessmentResult, AssessmentResultDocument } from '../models/assessment-result.schema';
+import {
+  ApplicationStatusHistory,
+  ApplicationStatusHistoryDocument,
+} from '../models/application-history.schema';
+import {
+  AssessmentResult,
+  AssessmentResultDocument,
+} from '../models/assessment-result.schema';
 import { Referral, ReferralDocument } from '../models/referral.schema';
-import { TerminationRequest, TerminationRequestDocument } from '../models/termination-request.schema';
-import { ClearanceChecklist, ClearanceChecklistDocument } from '../models/clearance-checklist.schema';
+import {
+  TerminationRequest,
+  TerminationRequestDocument,
+} from '../models/termination-request.schema';
+import {
+  ClearanceChecklist,
+  ClearanceChecklistDocument,
+} from '../models/clearance-checklist.schema';
 
 import { ApplicationStage } from '../enums/application-stage.enum';
 import { ApplicationStatus } from '../enums/application-status.enum';
@@ -48,23 +65,43 @@ async function seedRecruitment() {
   const app = await NestFactory.createApplicationContext(AppModule);
 
   try {
-    const jobTemplateModel = app.get<Model<JobTemplateDocument>>(getModelToken(JobTemplate.name));
-    const jobRequisitionModel = app.get<Model<JobRequisitionDocument>>(getModelToken(JobRequisition.name));
-    const applicationModel = app.get<Model<ApplicationDocument>>(getModelToken(Application.name));
-    const interviewModel = app.get<Model<InterviewDocument>>(getModelToken(Interview.name));
-    const offerModel = app.get<Model<OfferDocument>>(getModelToken(Offer.name));
-    const onboardingModel = app.get<Model<OnboardingDocument>>(getModelToken(Onboarding.name));
-    const documentModel = app.get<Model<DocumentDocument>>(getModelToken(Document.name));
-    const contractModel = app.get<Model<ContractDocument>>(getModelToken(Contract.name));
-    const applicationHistoryModel = app.get<Model<ApplicationStatusHistoryDocument>>(
-      getModelToken(ApplicationStatusHistory.name),
+    const jobTemplateModel = app.get<Model<JobTemplateDocument>>(
+      getModelToken(JobTemplate.name),
     );
-    const assessmentResultModel = app.get<Model<AssessmentResultDocument>>(getModelToken(AssessmentResult.name));
-    const referralModel = app.get<Model<ReferralDocument>>(getModelToken(Referral.name));
+    const jobRequisitionModel = app.get<Model<JobRequisitionDocument>>(
+      getModelToken(JobRequisition.name),
+    );
+    const applicationModel = app.get<Model<ApplicationDocument>>(
+      getModelToken(Application.name),
+    );
+    const interviewModel = app.get<Model<InterviewDocument>>(
+      getModelToken(Interview.name),
+    );
+    const offerModel = app.get<Model<OfferDocument>>(getModelToken(Offer.name));
+    const onboardingModel = app.get<Model<OnboardingDocument>>(
+      getModelToken(Onboarding.name),
+    );
+    const documentModel = app.get<Model<DocumentDocument>>(
+      getModelToken(Document.name),
+    );
+    const contractModel = app.get<Model<ContractDocument>>(
+      getModelToken(Contract.name),
+    );
+    const applicationHistoryModel = app.get<
+      Model<ApplicationStatusHistoryDocument>
+    >(getModelToken(ApplicationStatusHistory.name));
+    const assessmentResultModel = app.get<Model<AssessmentResultDocument>>(
+      getModelToken(AssessmentResult.name),
+    );
+    const referralModel = app.get<Model<ReferralDocument>>(
+      getModelToken(Referral.name),
+    );
     const terminationRequestModel = app.get<Model<TerminationRequestDocument>>(
       getModelToken(TerminationRequest.name),
     );
-    const clearanceChecklistModel = app.get<Model<ClearanceChecklistDocument>>(getModelToken(ClearanceChecklist.name));
+    const clearanceChecklistModel = app.get<Model<ClearanceChecklistDocument>>(
+      getModelToken(ClearanceChecklist.name),
+    );
 
     const users = {
       hiringManager: new Types.ObjectId(),
@@ -106,7 +143,8 @@ async function seedRecruitment() {
       department: 'Engineering',
       qualifications: ["Bachelor's in Computer Science", '5+ years experience'],
       skills: ['TypeScript', 'Node.js', 'React', 'MongoDB'],
-      description: 'Employer-branded template. Stages: screening -> department interview -> HR interview -> offer.',
+      description:
+        'Employer-branded template. Stages: screening -> department interview -> HR interview -> offer.',
     });
 
     const jobTemplateHR = await jobTemplateModel.create({
@@ -114,7 +152,8 @@ async function seedRecruitment() {
       department: 'People',
       qualifications: ['HR certification', '3+ years HRBP experience'],
       skills: ['Employee Relations', 'Analytics', 'Communication'],
-      description: 'Internal template. Stages: screening -> HR interview -> offer (with approvals).',
+      description:
+        'Internal template. Stages: screening -> HR interview -> offer (with approvals).',
     });
 
     const jobTemplateMarketing = await jobTemplateModel.create({
@@ -122,7 +161,8 @@ async function seedRecruitment() {
       department: 'Marketing',
       qualifications: ['Brand management background', 'Portfolio of campaigns'],
       skills: ['Content', 'SEO', 'Campaign Analytics'],
-      description: 'External careers page ready. Stages: screening -> panel interview -> offer.',
+      description:
+        'External careers page ready. Stages: screening -> panel interview -> offer.',
     });
 
     const jobRequisitionPublished = await jobRequisitionModel.create({
@@ -216,7 +256,9 @@ async function seedRecruitment() {
         changedBy: users.hr,
       },
     ]);
-    console.log(`Application histories created: ${applicationHistories.length}`);
+    console.log(
+      `Application histories created: ${applicationHistories.length}`,
+    );
 
     const interviewPrimary = await interviewModel.create({
       applicationId: applicationPrimary._id,
@@ -236,7 +278,8 @@ async function seedRecruitment() {
       panel: [users.hiringManager],
       calendarEventId: 'CAL-REF-001',
       status: InterviewStatus.SCHEDULED,
-      candidateFeedback: 'Pre-panel brief shared with candidate (communication template).',
+      candidateFeedback:
+        'Pre-panel brief shared with candidate (communication template).',
     });
 
     const assessmentPrimary = await assessmentResultModel.create({
@@ -253,8 +296,14 @@ async function seedRecruitment() {
       comments: 'Referral candidate with strong campaign portfolio.',
     });
 
-    await interviewModel.updateOne({ _id: interviewPrimary._id }, { feedbackId: assessmentPrimary._id });
-    await interviewModel.updateOne({ _id: interviewReferral._id }, { feedbackId: assessmentReferral._id });
+    await interviewModel.updateOne(
+      { _id: interviewPrimary._id },
+      { feedbackId: assessmentPrimary._id },
+    );
+    await interviewModel.updateOne(
+      { _id: interviewReferral._id },
+      { feedbackId: assessmentReferral._id },
+    );
 
     const offerAccepted = await offerModel.create({
       applicationId: applicationPrimary._id,
@@ -439,11 +488,17 @@ async function seedRecruitment() {
     console.log('  - Terminations: 1');
     console.log('  - Clearance Checklists: 1');
     console.log('This demonstrates:');
-    console.log('  - Complete recruitment workflow from job posting to onboarding and termination');
+    console.log(
+      '  - Complete recruitment workflow from job posting to onboarding and termination',
+    );
     console.log('  - Published vs draft vs external posting requisitions');
-    console.log('  - Application status history, interviews, and referral priority coverage');
+    console.log(
+      '  - Application status history, interviews, and referral priority coverage',
+    );
     console.log('  - Offer approvals, acceptance, and onboarding trigger');
-    console.log('  - Consent placeholder via document record (schema unchanged)');
+    console.log(
+      '  - Consent placeholder via document record (schema unchanged)',
+    );
     console.log('  - Offboarding via termination and clearance checklist');
   } catch (error) {
     console.error('Error during seeding:', error);

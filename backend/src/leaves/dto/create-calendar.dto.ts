@@ -1,4 +1,11 @@
-import { IsNumber, Min, Max, IsOptional, IsArray, ValidateNested } from 'class-validator';
+import {
+  IsNumber,
+  Min,
+  Max,
+  IsOptional,
+  IsArray,
+  ValidateNested,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 import { CreateBlockedPeriodDto } from './create-blocked-period.dto';
 import { CreateHolidayDto } from './create-holiday.dto';

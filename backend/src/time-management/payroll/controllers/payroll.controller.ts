@@ -1,4 +1,12 @@
-import { Controller, Get, Post, Body, Param, Query, BadRequestException } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Param,
+  Query,
+  BadRequestException,
+} from '@nestjs/common';
 import { PayrollService } from '../services/payroll.service';
 import { PrePayrollService } from '../services/pre-payroll.service';
 import { Types } from 'mongoose';
@@ -13,7 +21,8 @@ export class PayrollController {
 
   @Post('sync')
   async syncPayroll(
-    @Body() body: {
+    @Body()
+    body: {
       periodStart: string;
       periodEnd: string;
       employeeIds?: string[];
@@ -22,10 +31,17 @@ export class PayrollController {
   ) {
     const periodStart = new Date(body.periodStart);
     const periodEnd = new Date(body.periodEnd);
-    const employeeIds = body.employeeIds?.map(id => new Types.ObjectId(id));
-    const initiatedBy = body.initiatedBy ? new Types.ObjectId(body.initiatedBy) : undefined;
+    const employeeIds = body.employeeIds?.map((id) => new Types.ObjectId(id));
+    const initiatedBy = body.initiatedBy
+      ? new Types.ObjectId(body.initiatedBy)
+      : undefined;
 
-    return this.payrollService.syncPayroll(periodStart, periodEnd, initiatedBy, employeeIds);
+    return this.payrollService.syncPayroll(
+      periodStart,
+      periodEnd,
+      initiatedBy,
+      employeeIds,
+    );
   }
 
   @Get('sync-status/:id')
@@ -40,10 +56,7 @@ export class PayrollController {
 
   @Post('pre-payroll/validate')
   async validatePrePayroll(
-    @Body() body: {
-      periodStart: string;
-      periodEnd: string;
-    },
+    @Body() body: { periodStart: string; periodEnd: string },
   ) {
     const periodStart = new Date(body.periodStart);
     const periodEnd = new Date(body.periodEnd);
@@ -53,7 +66,8 @@ export class PayrollController {
 
   @Post('pre-payroll/closure')
   async runPrePayrollClosure(
-    @Body() body: {
+    @Body()
+    body: {
       periodStart: string;
       periodEnd: string;
       escalationDeadlineHours?: number;
@@ -77,7 +91,9 @@ export class PayrollController {
     @Query('employeeIds') employeeIds?: string,
   ) {
     if (!periodStart || !periodEnd) {
-      throw new BadRequestException('periodStart and periodEnd query parameters are required');
+      throw new BadRequestException(
+        'periodStart and periodEnd query parameters are required',
+      );
     }
 
     const start = new Date(periodStart);
@@ -96,10 +112,9 @@ export class PayrollController {
     }
 
     const empIds = employeeIds
-      ? employeeIds.split(',').map(id => new Types.ObjectId(id))
+      ? employeeIds.split(',').map((id) => new Types.ObjectId(id))
       : undefined;
 
     return this.payrollService.generatePayrollPayload(start, end, empIds);
   }
 }
-

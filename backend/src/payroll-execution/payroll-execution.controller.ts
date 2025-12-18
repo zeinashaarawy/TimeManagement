@@ -1,4 +1,14 @@
-import { Body, Controller, Get, Optional, Param, Patch, Post, Put, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Optional,
+  Param,
+  Patch,
+  Post,
+  Put,
+  Query,
+} from '@nestjs/common';
 import { BonusStatus, BenefitStatus } from './enums/payroll-execution-enum';
 import {
   ApproveSigningBonusDto,
@@ -16,9 +26,7 @@ import {
 export class PayrollExecutionController {
   private readonly payrollExecutionService: PayrollExecutionService;
 
-  constructor(
-    @Optional() payrollExecutionService?: PayrollExecutionService,
-  ) {
+  constructor(@Optional() payrollExecutionService?: PayrollExecutionService) {
     this.payrollExecutionService =
       payrollExecutionService ?? this.createUnavailableServiceProxy();
   }
@@ -72,7 +80,8 @@ export class PayrollExecutionController {
   @Post('termination-benefits/:id/approve')
   approveTerminationBenefit(
     @Param('id') terminationBenefitId: string,
-    @Body() body: ApproveTerminationBenefitDto = new ApproveTerminationBenefitDto(),
+    @Body()
+    body: ApproveTerminationBenefitDto = new ApproveTerminationBenefitDto(),
   ) {
     return this.payrollExecutionService.approveTerminationBenefit(
       terminationBenefitId,
@@ -129,9 +138,7 @@ export class PayrollExecutionController {
   }
 
   @Post('payslips/generate')
-  generatePayslip(
-    @Body() body: { employeeId: string; payrollRunId: string },
-  ) {
+  generatePayslip(@Body() body: { employeeId: string; payrollRunId: string }) {
     return this.payrollExecutionService.generatePayslip(
       body.employeeId,
       body.payrollRunId,
@@ -160,7 +167,12 @@ export class PayrollExecutionController {
 
   @Post('draft/generate-automatic')
   generateDraftPayrollAutomatically(
-    @Body() body: { entity: string; payrollSpecialistId?: string; payrollPeriod?: string },
+    @Body()
+    body: {
+      entity: string;
+      payrollSpecialistId?: string;
+      payrollPeriod?: string;
+    },
   ) {
     return this.payrollExecutionService.generateDraftPayrollAutomatically(body);
   }

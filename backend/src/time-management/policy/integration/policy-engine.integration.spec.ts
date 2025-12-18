@@ -16,11 +16,32 @@ import { Model, Types } from 'mongoose';
 import { getModelToken } from '@nestjs/mongoose';
 import { PolicyEngineService } from '../services/policy-engine.service';
 import { TimeManagementModule } from '../../time-management.module';
-import { TimePolicy, TimePolicyDocument, PolicyScope, RoundingRule } from '../schemas/time-policy.schema';
-import { AttendanceRecord, AttendanceRecordDocument } from '../../attendance/schemas/attendance-record.schema';
-import { PenaltyRecord, PenaltyRecordDocument, PenaltyType, PenaltyStatus } from '../schemas/penalty-record.schema';
-import { OvertimeRecord, OvertimeRecordDocument, OvertimeStatus } from '../schemas/overtime-record.schema';
-import { TimeExceptionStatus, TimeExceptionType, PunchType } from '../../enums/index';
+import {
+  TimePolicy,
+  TimePolicyDocument,
+  PolicyScope,
+  RoundingRule,
+} from '../schemas/time-policy.schema';
+import {
+  AttendanceRecord,
+  AttendanceRecordDocument,
+} from '../../attendance/schemas/attendance-record.schema';
+import {
+  PenaltyRecord,
+  PenaltyRecordDocument,
+  PenaltyType,
+  PenaltyStatus,
+} from '../schemas/penalty-record.schema';
+import {
+  OvertimeRecord,
+  OvertimeRecordDocument,
+  OvertimeStatus,
+} from '../schemas/overtime-record.schema';
+import {
+  TimeExceptionStatus,
+  TimeExceptionType,
+  PunchType,
+} from '../../enums/index';
 
 // Import the mocked TimeException and create type alias
 import { TimeException } from '../../attendance/schemas/time-exception.schema';
@@ -29,7 +50,7 @@ type TimeExceptionDocument = any; // Use any for tests since we're mocking
 /**
  * Integration tests for Policy Engine
  * Tests the full flow: attendance → policy compute → exception approve → payroll sync
- * 
+ *
  * Note: These tests require a MongoDB connection. In CI/CD, use a test database.
  * For local development, ensure MongoDB is running or use MongoDB Memory Server.
  */
@@ -88,7 +109,10 @@ describe('PolicyEngine Integration', () => {
               Object.assign(this, data);
             }
             save = jest.fn().mockImplementation(() => {
-              return Promise.resolve({ ...this.data, _id: new Types.ObjectId() });
+              return Promise.resolve({
+                ...this.data,
+                _id: new Types.ObjectId(),
+              });
             });
             static deleteMany = jest.fn();
             static find = jest.fn();
@@ -104,7 +128,10 @@ describe('PolicyEngine Integration', () => {
               Object.assign(this, data);
             }
             save = jest.fn().mockImplementation(() => {
-              return Promise.resolve({ ...this.data, _id: new Types.ObjectId() });
+              return Promise.resolve({
+                ...this.data,
+                _id: new Types.ObjectId(),
+              });
             });
             static deleteMany = jest.fn();
             static find = jest.fn();
@@ -114,11 +141,21 @@ describe('PolicyEngine Integration', () => {
     }).compile();
 
     policyEngineService = module.get<PolicyEngineService>(PolicyEngineService);
-    policyModel = module.get<Model<TimePolicyDocument>>(getModelToken(TimePolicy.name));
-    attendanceModel = module.get<Model<AttendanceRecordDocument>>(getModelToken(AttendanceRecord.name));
-    exceptionModel = module.get<Model<TimeExceptionDocument>>(getModelToken(TimeException.name));
-    penaltyModel = module.get<Model<PenaltyRecordDocument>>(getModelToken(PenaltyRecord.name));
-    overtimeModel = module.get<Model<OvertimeRecordDocument>>(getModelToken(OvertimeRecord.name));
+    policyModel = module.get<Model<TimePolicyDocument>>(
+      getModelToken(TimePolicy.name),
+    );
+    attendanceModel = module.get<Model<AttendanceRecordDocument>>(
+      getModelToken(AttendanceRecord.name),
+    );
+    exceptionModel = module.get<Model<TimeExceptionDocument>>(
+      getModelToken(TimeException.name),
+    );
+    penaltyModel = module.get<Model<PenaltyRecordDocument>>(
+      getModelToken(PenaltyRecord.name),
+    );
+    overtimeModel = module.get<Model<OvertimeRecordDocument>>(
+      getModelToken(OvertimeRecord.name),
+    );
   });
 
   afterAll(async () => {
@@ -180,7 +217,9 @@ describe('PolicyEngine Integration', () => {
       // Verify initial computation
       expect(initialResult.latenessMinutes).toBeGreaterThan(0);
       expect(initialResult.penalties.length).toBeGreaterThan(0);
-      const latenessPenalty = initialResult.penalties.find(p => p.type === PenaltyType.LATENESS);
+      const latenessPenalty = initialResult.penalties.find(
+        (p) => p.type === PenaltyType.LATENESS,
+      );
       expect(latenessPenalty).toBeDefined();
 
       // Step 4: Create and approve exception
@@ -193,24 +232,35 @@ describe('PolicyEngine Integration', () => {
         assignedTo: new Types.ObjectId(),
       };
 
-      jest.spyOn(exceptionModel, 'find').mockResolvedValue([exception] as TimeExceptionDocument[]);
+      jest
+        .spyOn(exceptionModel, 'find')
+        .mockResolvedValue([exception] as TimeExceptionDocument[]);
 
       // Step 5: Recalculate after exception approval
-      jest.spyOn(attendanceModel, 'findById').mockResolvedValue(attendanceRecord as AttendanceRecordDocument);
-      jest.spyOn(penaltyModel, 'deleteMany').mockResolvedValue({ deletedCount: 1 } as any);
-      jest.spyOn(overtimeModel, 'deleteMany').mockResolvedValue({ deletedCount: 0 } as any);
+      jest
+        .spyOn(attendanceModel, 'findById')
+        .mockResolvedValue(attendanceRecord as AttendanceRecordDocument);
+      jest
+        .spyOn(penaltyModel, 'deleteMany')
+        .mockResolvedValue({ deletedCount: 1 } as any);
+      jest
+        .spyOn(overtimeModel, 'deleteMany')
+        .mockResolvedValue({ deletedCount: 0 } as any);
 
-      const recalculatedResult = await policyEngineService.recalculatePolicyResults(
-        attendanceRecord._id!,
-        testDate,
-        new Date('2024-01-15T09:00:00Z'),
-        undefined,
-        480,
-      );
+      const recalculatedResult =
+        await policyEngineService.recalculatePolicyResults(
+          attendanceRecord._id!,
+          testDate,
+          new Date('2024-01-15T09:00:00Z'),
+          undefined,
+          480,
+        );
 
       // Verify exception removed lateness penalty
       expect(recalculatedResult.latenessMinutes).toBe(0);
-      const newLatenessPenalty = recalculatedResult.penalties.find(p => p.type === PenaltyType.LATENESS);
+      const newLatenessPenalty = recalculatedResult.penalties.find(
+        (p) => p.type === PenaltyType.LATENESS,
+      );
       expect(newLatenessPenalty).toBeUndefined();
 
       // Step 6: Save computed results
@@ -267,8 +317,13 @@ describe('PolicyEngine Integration', () => {
       expect(result.overtime[0].status).toBe(OvertimeStatus.PENDING);
 
       // Simulate approval
-      const approvedOvertime = { ...result.overtime[0], status: OvertimeStatus.APPROVED };
-      jest.spyOn(overtimeModel, 'find').mockResolvedValue([approvedOvertime] as any);
+      const approvedOvertime = {
+        ...result.overtime[0],
+        status: OvertimeStatus.APPROVED,
+      };
+      jest
+        .spyOn(overtimeModel, 'find')
+        .mockResolvedValue([approvedOvertime] as any);
 
       // Verify overtime is ready for payroll sync
       const overtimeRecords = await overtimeModel.find({
@@ -297,16 +352,22 @@ describe('PolicyEngine Integration', () => {
         active: true,
       };
 
-      const mockFindOne = jest.fn()
+      const mockFindOne = jest
+        .fn()
         .mockReturnValueOnce({
-          sort: jest.fn().mockResolvedValue(employeePolicy as TimePolicyDocument),
+          sort: jest
+            .fn()
+            .mockResolvedValue(employeePolicy as TimePolicyDocument),
         })
         .mockReturnValueOnce({
           sort: jest.fn().mockResolvedValue(globalPolicy as TimePolicyDocument),
         });
       jest.spyOn(policyModel, 'findOne').mockImplementation(mockFindOne);
 
-      const result = await policyEngineService.getApplicablePolicy(testEmployeeId, testDate);
+      const result = await policyEngineService.getApplicablePolicy(
+        testEmployeeId,
+        testDate,
+      );
 
       expect(result).toEqual(employeePolicy);
       // The service may call findOne multiple times internally, but should return employee policy
@@ -314,4 +375,3 @@ describe('PolicyEngine Integration', () => {
     });
   });
 });
-

@@ -15,4 +15,3 @@ export class CreateReferralDto {
   @IsOptional()
   level?: string;
 }
-

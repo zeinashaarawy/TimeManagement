@@ -1,4 +1,11 @@
-import { Injectable, NotFoundException, BadRequestException, Logger, Optional, Inject } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+  Logger,
+  Optional,
+  Inject,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import {
@@ -37,11 +44,11 @@ import type { IOrganizationStructureService } from './interfaces/organization-st
 
 /**
  * RecruitmentService with optional cross-subsystem dependencies.
- * 
+ *
  * When other subsystems are integrated:
  * 1. Replace stub services in RecruitmentModule with real implementations
  * 2. The service will automatically use the real implementations via dependency injection
- * 
+ *
  * Integration points:
  * - Onboarding: Triggered when offer is accepted (REC-029)
  * - Employee Profile: Create employee from candidate when offer accepted
@@ -68,9 +75,15 @@ export class RecruitmentService {
     private referralModel: Model<Referral>,
     @InjectModel(Offer.name)
     private offerModel: Model<Offer>,
-    @Optional() @Inject('IOnboardingService') private onboardingService?: IOnboardingService,
-    @Optional() @Inject('IEmployeeProfileService') private employeeProfileService?: IEmployeeProfileService,
-    @Optional() @Inject('IOrganizationStructureService') private orgStructureService?: IOrganizationStructureService,
+    @Optional()
+    @Inject('IOnboardingService')
+    private onboardingService?: IOnboardingService,
+    @Optional()
+    @Inject('IEmployeeProfileService')
+    private employeeProfileService?: IEmployeeProfileService,
+    @Optional()
+    @Inject('IOrganizationStructureService')
+    private orgStructureService?: IOrganizationStructureService,
   ) {}
 
   // ==========================================
@@ -84,23 +97,25 @@ export class RecruitmentService {
    */
   async createJobTemplate(dto: CreateJobTemplateDto): Promise<JobTemplate> {
     this.logger.log(`Creating job template: ${dto.title}`);
-    
+
     // BR2: Validate required fields
     if (!dto.title || !dto.department) {
-      throw new BadRequestException('Job title and department are required (BR2)');
+      throw new BadRequestException(
+        'Job title and department are required (BR2)',
+      );
     }
-    
+
     if (!dto.qualifications || dto.qualifications.length === 0) {
       throw new BadRequestException('Qualifications are required (BR2)');
     }
-    
+
     if (!dto.skills || dto.skills.length === 0) {
       throw new BadRequestException('Skills are required (BR2)');
     }
 
     const template = new this.jobTemplateModel(dto);
     await template.save();
-    
+
     this.logger.log(`Job template created with ID: ${template._id}`);
     return template;
   }
@@ -117,15 +132,18 @@ export class RecruitmentService {
     return template;
   }
 
-  async updateJobTemplate(id: string, dto: UpdateJobTemplateDto): Promise<JobTemplate> {
+  async updateJobTemplate(
+    id: string,
+    dto: UpdateJobTemplateDto,
+  ): Promise<JobTemplate> {
     const template = await this.jobTemplateModel
       .findByIdAndUpdate(id, dto, { new: true })
       .exec();
-    
+
     if (!template) {
       throw new NotFoundException(`Job template with ID ${id} not found`);
     }
-    
+
     this.logger.log(`Job template ${id} updated`);
     return template;
   }
@@ -148,12 +166,16 @@ export class RecruitmentService {
    * BR6: System must allow automatic posting to career sites
    * BR9: Applications tracked through defined stages
    */
-  async createJobRequisition(dto: CreateJobRequisitionDto): Promise<JobRequisition> {
+  async createJobRequisition(
+    dto: CreateJobRequisitionDto,
+  ): Promise<JobRequisition> {
     this.logger.log(`Creating job requisition: ${dto.requisitionId}`);
-    
+
     // BR2: Validate required fields
     if (dto.openings < 1) {
-      throw new BadRequestException('Number of openings must be at least 1 (BR2)');
+      throw new BadRequestException(
+        'Number of openings must be at least 1 (BR2)',
+      );
     }
 
     // Validate template exists if provided
@@ -163,7 +185,7 @@ export class RecruitmentService {
 
     const requisition = new this.jobRequisitionModel(dto);
     await requisition.save();
-    
+
     this.logger.log(`Job requisition created with ID: ${requisition._id}`);
     return requisition;
   }
@@ -174,7 +196,7 @@ export class RecruitmentService {
    */
   async publishJobRequisition(id: string): Promise<JobRequisition> {
     const requisition = await this.jobRequisitionModel.findById(id).exec();
-    
+
     if (!requisition) {
       throw new NotFoundException(`Job requisition with ID ${id} not found`);
     }
@@ -189,7 +211,7 @@ export class RecruitmentService {
 
     // BR6: Trigger automatic posting to career sites (event/webhook would go here)
     this.logger.log(`Job requisition ${id} published to career sites (BR6)`);
-    
+
     return requisition;
   }
 
@@ -202,22 +224,25 @@ export class RecruitmentService {
       .findById(id)
       .populate('templateId')
       .exec();
-    
+
     if (!requisition) {
       throw new NotFoundException(`Job requisition with ID ${id} not found`);
     }
     return requisition;
   }
 
-  async updateJobRequisition(id: string, dto: UpdateJobRequisitionDto): Promise<JobRequisition> {
+  async updateJobRequisition(
+    id: string,
+    dto: UpdateJobRequisitionDto,
+  ): Promise<JobRequisition> {
     const requisition = await this.jobRequisitionModel
       .findByIdAndUpdate(id, dto, { new: true })
       .exec();
-    
+
     if (!requisition) {
       throw new NotFoundException(`Job requisition with ID ${id} not found`);
     }
-    
+
     this.logger.log(`Job requisition ${id} updated`);
     return requisition;
   }
@@ -233,10 +258,12 @@ export class RecruitmentService {
    */
   async createApplication(dto: CreateApplicationDto): Promise<Application> {
     this.logger.log(`Creating application for candidate: ${dto.candidateId}`);
-    
+
     // BR28: Validate consent for data processing
     if (!dto.consentGiven) {
-      throw new BadRequestException('Candidate consent is required for data processing (BR28)');
+      throw new BadRequestException(
+        'Candidate consent is required for data processing (BR28)',
+      );
     }
 
     // Validate requisition exists
@@ -246,7 +273,9 @@ export class RecruitmentService {
     const application = new this.applicationModel({
       candidateId: new Types.ObjectId(dto.candidateId),
       requisitionId: new Types.ObjectId(dto.requisitionId),
-      assignedHr: dto.assignedHr ? new Types.ObjectId(dto.assignedHr) : undefined,
+      assignedHr: dto.assignedHr
+        ? new Types.ObjectId(dto.assignedHr)
+        : undefined,
       currentStage: dto.currentStage || ApplicationStage.SCREENING,
       status: dto.status || ApplicationStatus.SUBMITTED,
     });
@@ -288,7 +317,7 @@ export class RecruitmentService {
     changedBy: string,
   ): Promise<Application> {
     const application = await this.applicationModel.findById(id).exec();
-    
+
     if (!application) {
       throw new NotFoundException(`Application with ID ${id} not found`);
     }
@@ -317,9 +346,15 @@ export class RecruitmentService {
     );
 
     // BR11, BR27: Trigger notification hooks (would integrate with notification service)
-    await this.triggerStatusChangeNotifications(application, oldStatus, dto.comment);
+    await this.triggerStatusChangeNotifications(
+      application,
+      oldStatus,
+      dto.comment,
+    );
 
-    this.logger.log(`Application ${id} status updated from ${oldStatus} to ${application.status} (BR9)`);
+    this.logger.log(
+      `Application ${id} status updated from ${oldStatus} to ${application.status} (BR9)`,
+    );
     return application;
   }
 
@@ -327,7 +362,9 @@ export class RecruitmentService {
    * Get application tracking history (REC-008)
    * BR27: Status tracking easily visualized and real-time
    */
-  async getApplicationHistory(applicationId: string): Promise<ApplicationStatusHistory[]> {
+  async getApplicationHistory(
+    applicationId: string,
+  ): Promise<ApplicationStatusHistory[]> {
     return this.applicationHistoryModel
       .find({ applicationId: new Types.ObjectId(applicationId) })
       .sort({ createdAt: 1 })
@@ -370,7 +407,7 @@ export class RecruitmentService {
           strictPopulate: false,
         })
         .exec();
-      
+
       if (!application) {
         throw new NotFoundException(`Application with ID ${id} not found`);
       }
@@ -400,14 +437,18 @@ export class RecruitmentService {
    * BR20: Panels need knowledge/training to conduct interviews
    */
   async scheduleInterview(dto: ScheduleInterviewDto): Promise<Interview> {
-    this.logger.log(`Scheduling interview for application: ${dto.applicationId}`);
-    
+    this.logger.log(
+      `Scheduling interview for application: ${dto.applicationId}`,
+    );
+
     // Validate application exists
     const application = await this.findApplicationById(dto.applicationId);
 
     // BR19(a): Validate panel members exist (would check user service in real implementation)
     if (!dto.panel || dto.panel.length === 0) {
-      throw new BadRequestException('At least one panel member is required (BR19)');
+      throw new BadRequestException(
+        'At least one panel member is required (BR19)',
+      );
     }
 
     // Create interview
@@ -416,7 +457,7 @@ export class RecruitmentService {
       stage: dto.stage,
       scheduledDate: dto.scheduledDate,
       method: dto.method,
-      panel: dto.panel.map(id => new Types.ObjectId(id)),
+      panel: dto.panel.map((id) => new Types.ObjectId(id)),
       videoLink: dto.videoLink,
       calendarEventId: dto.calendarEventId,
       status: InterviewStatus.SCHEDULED,
@@ -426,7 +467,7 @@ export class RecruitmentService {
 
     // BR19(c): Send calendar invites to interviewers (notification hook)
     await this.sendInterviewInvites(interview, 'panel');
-    
+
     // BR19(d): Notify candidate (notification hook)
     await this.sendInterviewInvites(interview, 'candidate');
 
@@ -441,22 +482,30 @@ export class RecruitmentService {
    * BR21: Criteria used in assessment are pre-set and agreed upon
    * BR23: System allows/houses multiple assessment tools
    */
-  async submitInterviewFeedback(dto: SubmitInterviewFeedbackDto): Promise<AssessmentResult> {
+  async submitInterviewFeedback(
+    dto: SubmitInterviewFeedbackDto,
+  ): Promise<AssessmentResult> {
     this.logger.log(`Submitting feedback for interview: ${dto.interviewId}`);
-    
+
     // Validate interview exists
-    const interview = await this.interviewModel.findById(dto.interviewId).exec();
+    const interview = await this.interviewModel
+      .findById(dto.interviewId)
+      .exec();
     if (!interview) {
-      throw new NotFoundException(`Interview with ID ${dto.interviewId} not found`);
+      throw new NotFoundException(
+        `Interview with ID ${dto.interviewId} not found`,
+      );
     }
 
     // BR22: Validate interviewer is part of the panel
     const isInPanel = interview.panel.some(
-      panelMember => panelMember.toString() === dto.interviewerId
+      (panelMember) => panelMember.toString() === dto.interviewerId,
     );
-    
+
     if (!isInPanel) {
-      throw new BadRequestException('Only panel members can submit feedback (BR22)');
+      throw new BadRequestException(
+        'Only panel members can submit feedback (BR22)',
+      );
     }
 
     // BR21, BR23: Create structured assessment result with pre-set criteria
@@ -474,19 +523,23 @@ export class RecruitmentService {
     const allFeedback = await this.assessmentResultModel
       .find({ interviewId: interview._id })
       .exec();
-    
+
     if (allFeedback.length === interview.panel.length) {
       interview.status = InterviewStatus.COMPLETED;
-      interview.feedbackId = assessmentResult._id as Types.ObjectId;
+      interview.feedbackId = assessmentResult._id;
       await interview.save();
-      this.logger.log(`All panel feedback received for interview ${dto.interviewId} (BR22)`);
+      this.logger.log(
+        `All panel feedback received for interview ${dto.interviewId} (BR22)`,
+      );
     }
 
     this.logger.log(`Interview feedback submitted (BR10, BR21, BR23)`);
     return assessmentResult;
   }
 
-  async findInterviewsByApplication(applicationId: string): Promise<Interview[]> {
+  async findInterviewsByApplication(
+    applicationId: string,
+  ): Promise<Interview[]> {
     return this.interviewModel
       .find({ applicationId: new Types.ObjectId(applicationId) })
       .populate('panel')
@@ -499,7 +552,7 @@ export class RecruitmentService {
       .populate('applicationId')
       .populate('panel')
       .exec();
-    
+
     if (!interview) {
       throw new NotFoundException(`Interview with ID ${id} not found`);
     }
@@ -517,7 +570,7 @@ export class RecruitmentService {
    */
   async createReferral(dto: CreateReferralDto): Promise<Referral> {
     this.logger.log(`Creating referral for candidate: ${dto.candidateId}`);
-    
+
     const referral = new this.referralModel({
       referringEmployeeId: new Types.ObjectId(dto.referringEmployeeId),
       candidateId: new Types.ObjectId(dto.candidateId),
@@ -526,7 +579,7 @@ export class RecruitmentService {
     });
 
     await referral.save();
-    
+
     // BR25: Referrals get priority in screening (would affect ranking logic)
     this.logger.log(`Referral created - candidate gets priority (BR14, BR25)`);
     return referral;
@@ -546,8 +599,10 @@ export class RecruitmentService {
     } catch (error) {
       // If populate fails (e.g., User model not registered), return without populate
       // This is expected in standalone mode where User model may not exist
-      if (error.message?.includes('Schema hasn\'t been registered')) {
-        this.logger.debug(`User model not registered, returning referrals without populate`);
+      if (error.message?.includes("Schema hasn't been registered")) {
+        this.logger.debug(
+          `User model not registered, returning referrals without populate`,
+        );
       } else {
         this.logger.error(`Error fetching referrals: ${error.message}`);
       }
@@ -568,10 +623,10 @@ export class RecruitmentService {
    */
   async createOffer(dto: CreateOfferDto): Promise<Offer> {
     this.logger.log(`Creating offer for application: ${dto.applicationId}`);
-    
+
     // Validate application exists and is at offer stage
     const application = await this.findApplicationById(dto.applicationId);
-    
+
     if (application.status !== ApplicationStatus.OFFER) {
       throw new BadRequestException('Application must be at offer stage');
     }
@@ -580,7 +635,9 @@ export class RecruitmentService {
     const offer = new this.offerModel({
       applicationId: new Types.ObjectId(dto.applicationId),
       candidateId: new Types.ObjectId(dto.candidateId),
-      hrEmployeeId: dto.hrEmployeeId ? new Types.ObjectId(dto.hrEmployeeId) : undefined,
+      hrEmployeeId: dto.hrEmployeeId
+        ? new Types.ObjectId(dto.hrEmployeeId)
+        : undefined,
       grossSalary: dto.grossSalary,
       signingBonus: dto.signingBonus,
       benefits: dto.benefits,
@@ -595,7 +652,7 @@ export class RecruitmentService {
     });
 
     await offer.save();
-    
+
     this.logger.log(`Offer created with ID: ${offer._id} (BR26)`);
     return offer;
   }
@@ -606,7 +663,7 @@ export class RecruitmentService {
    */
   async approveOffer(offerId: string, dto: ApproveOfferDto): Promise<Offer> {
     const offer = await this.offerModel.findById(offerId).exec();
-    
+
     if (!offer) {
       throw new NotFoundException(`Offer with ID ${offerId} not found`);
     }
@@ -622,12 +679,15 @@ export class RecruitmentService {
 
     // Check if all required approvals received
     const allApproved = offer.approvers.every(
-      approver => approver.status === ApprovalStatus.APPROVED
+      (approver) => approver.status === ApprovalStatus.APPROVED,
     );
 
-    if (allApproved && offer.approvers.length >= 2) { // Assume 2 approvals needed
+    if (allApproved && offer.approvers.length >= 2) {
+      // Assume 2 approvals needed
       offer.finalStatus = OfferFinalStatus.APPROVED;
-      this.logger.log(`Offer ${offerId} fully approved - ready to send (BR26b)`);
+      this.logger.log(
+        `Offer ${offerId} fully approved - ready to send (BR26b)`,
+      );
     }
 
     await offer.save();
@@ -641,7 +701,7 @@ export class RecruitmentService {
    */
   async respondToOffer(offerId: string, dto: RespondOfferDto): Promise<Offer> {
     const offer = await this.offerModel.findById(offerId).exec();
-    
+
     if (!offer) {
       throw new NotFoundException(`Offer with ID ${offerId} not found`);
     }
@@ -654,7 +714,7 @@ export class RecruitmentService {
 
       // BR26(c): Trigger onboarding (REC-029)
       await this.triggerOnboarding(offer);
-      
+
       // Update application status to hired
       await this.updateApplicationStatus(
         offer.applicationId.toString(),
@@ -668,10 +728,10 @@ export class RecruitmentService {
     }
 
     await offer.save();
-    
+
     // BR37: Log communication in applicant profile
     this.logger.log(`Offer response logged (BR37)`);
-    
+
     return offer;
   }
 
@@ -681,7 +741,7 @@ export class RecruitmentService {
       .populate('applicationId')
       .populate('candidateId')
       .exec();
-    
+
     if (!offer) {
       throw new NotFoundException(`Offer with ID ${id} not found`);
     }
@@ -702,7 +762,7 @@ export class RecruitmentService {
     template: RejectionTemplateDto,
   ): Promise<void> {
     const application = await this.findApplicationById(applicationId);
-    
+
     // Update application status to rejected
     await this.updateApplicationStatus(
       applicationId,
@@ -712,7 +772,7 @@ export class RecruitmentService {
 
     // BR36: Send automated email (would integrate with email service)
     this.logger.log(`Rejection notification sent to candidate (BR36)`);
-    
+
     // BR37: Log communication
     this.logger.log(`Rejection communication logged (BR37)`);
   }
@@ -727,19 +787,19 @@ export class RecruitmentService {
    */
   async getRecruitmentAnalytics(query: AnalyticsQueryDto): Promise<any> {
     this.logger.log('Generating recruitment analytics (BR33)');
-    
+
     const filters: any = {};
-    
+
     if (query.startDate || query.endDate) {
       filters.createdAt = {};
       if (query.startDate) filters.createdAt.$gte = query.startDate;
       if (query.endDate) filters.createdAt.$lte = query.endDate;
     }
-    
+
     if (query.requisitionId) {
       filters.requisitionId = new Types.ObjectId(query.requisitionId);
     }
-    
+
     if (query.status) {
       filters.status = query.status;
     }
@@ -756,7 +816,9 @@ export class RecruitmentService {
       referralStats: await this.getReferralStats(applications),
     };
 
-    this.logger.log(`Analytics generated for ${applications.length} applications (BR33)`);
+    this.logger.log(
+      `Analytics generated for ${applications.length} applications (BR33)`,
+    );
     return analytics;
   }
 
@@ -802,7 +864,9 @@ export class RecruitmentService {
   ): Promise<void> {
     // BR11, BR27, BR36: Trigger notification service
     // In real implementation, would emit event or call notification service
-    this.logger.log(`Status change notification triggered: ${oldStatus} -> ${application.status} (BR11, BR27, BR36)`);
+    this.logger.log(
+      `Status change notification triggered: ${oldStatus} -> ${application.status} (BR11, BR27, BR36)`,
+    );
   }
 
   private async sendInterviewInvites(
@@ -817,23 +881,33 @@ export class RecruitmentService {
   // ONBOARDING TRIGGER (REC-029)
   // ==========================================
   private async triggerOnboarding(offer: Offer): Promise<void> {
-    this.logger.log(`Onboarding triggered for candidate ${offer.candidateId} (BR26c)`);
+    this.logger.log(
+      `Onboarding triggered for candidate ${offer.candidateId} (BR26c)`,
+    );
 
     // Get application details for onboarding
-    const application = await this.applicationModel.findById(offer.applicationId).exec();
+    const application = await this.applicationModel
+      .findById(offer.applicationId)
+      .exec();
     if (!application) {
-      this.logger.warn(`Application ${offer.applicationId} not found for onboarding trigger`);
+      this.logger.warn(
+        `Application ${offer.applicationId} not found for onboarding trigger`,
+      );
       return;
     }
 
     // Get requisition details for department/role
-    const requisition = await this.jobRequisitionModel.findById(application.requisitionId).exec();
+    const requisition = await this.jobRequisitionModel
+      .findById(application.requisitionId)
+      .exec();
     let department = 'Unknown';
     let role = offer.role || 'Unknown';
 
     // Get department and title from job template if available
     if (requisition?.templateId) {
-      const template = await this.jobTemplateModel.findById(requisition.templateId).exec();
+      const template = await this.jobTemplateModel
+        .findById(requisition.templateId)
+        .exec();
       if (template) {
         department = template.department || 'Unknown';
         role = offer.role || template.title || 'Unknown';
@@ -842,9 +916,12 @@ export class RecruitmentService {
 
     // Validate department with organization structure (if available)
     if (this.orgStructureService) {
-      const isValid = await this.orgStructureService.validateDepartment(department);
+      const isValid =
+        await this.orgStructureService.validateDepartment(department);
       if (!isValid) {
-        this.logger.warn(`Department ${department} not found in organization structure`);
+        this.logger.warn(
+          `Department ${department} not found in organization structure`,
+        );
       }
     }
 
@@ -858,27 +935,31 @@ export class RecruitmentService {
       try {
         // In real implementation, candidate details would be fetched from Candidate collection
         // For now, pass candidateId and let the service handle it
-        const result = await this.employeeProfileService.createEmployeeFromCandidate(
-          offer.candidateId.toString(),
-          {
-            fullName: 'Candidate', // TODO: Fetch from Candidate collection when integrated
-            email: 'candidate@example.com', // TODO: Fetch from Candidate collection when integrated
-            role: role,
-            department: department,
-            startDate: new Date(), // In real implementation, this would come from offer
-          },
-        );
+        const result =
+          await this.employeeProfileService.createEmployeeFromCandidate(
+            offer.candidateId.toString(),
+            {
+              fullName: 'Candidate', // TODO: Fetch from Candidate collection when integrated
+              email: 'candidate@example.com', // TODO: Fetch from Candidate collection when integrated
+              role: role,
+              department: department,
+              startDate: new Date(), // In real implementation, this would come from offer
+            },
+          );
         employeeId = result.employeeId;
         this.logger.log(`Employee profile created: ${employeeId}`);
       } catch (error) {
-        this.logger.error(`Failed to create employee profile: ${error.message}`);
+        this.logger.error(
+          `Failed to create employee profile: ${error.message}`,
+        );
       }
     }
 
     // Trigger onboarding workflow (if onboarding service available)
     if (this.onboardingService) {
       try {
-        const offerId = (offer as any)._id?.toString() || offer.candidateId.toString();
+        const offerId =
+          (offer as any)._id?.toString() || offer.candidateId.toString();
         const onboardingResult = await this.onboardingService.triggerOnboarding(
           offer.candidateId.toString(),
           offerId,
@@ -889,44 +970,63 @@ export class RecruitmentService {
             startDate: new Date(), // In real implementation, this would come from offer
           },
         );
-        this.logger.log(`Onboarding workflow triggered: ${onboardingResult.onboardingId}`);
-        this.logger.log(`Onboarding tasks created: ${onboardingResult.tasks.length}`);
+        this.logger.log(
+          `Onboarding workflow triggered: ${onboardingResult.onboardingId}`,
+        );
+        this.logger.log(
+          `Onboarding tasks created: ${onboardingResult.tasks.length}`,
+        );
       } catch (error) {
         this.logger.error(`Failed to trigger onboarding: ${error.message}`);
       }
     } else {
-      this.logger.warn('Onboarding service not available - onboarding not triggered');
+      this.logger.warn(
+        'Onboarding service not available - onboarding not triggered',
+      );
     }
   }
 
   private groupByStatus(applications: Application[]): Record<string, number> {
-    return applications.reduce((acc, app) => {
-      acc[app.status] = (acc[app.status] || 0) + 1;
-      return acc;
-    }, {} as Record<string, number>);
+    return applications.reduce(
+      (acc, app) => {
+        acc[app.status] = (acc[app.status] || 0) + 1;
+        return acc;
+      },
+      {} as Record<string, number>,
+    );
   }
 
   private groupByStage(applications: Application[]): Record<string, number> {
-    return applications.reduce((acc, app) => {
-      acc[app.currentStage] = (acc[app.currentStage] || 0) + 1;
-      return acc;
-    }, {} as Record<string, number>);
+    return applications.reduce(
+      (acc, app) => {
+        acc[app.currentStage] = (acc[app.currentStage] || 0) + 1;
+        return acc;
+      },
+      {} as Record<string, number>,
+    );
   }
 
-  private async calculateAverageTimeToHire(applications: Application[]): Promise<number> {
+  private async calculateAverageTimeToHire(
+    applications: Application[],
+  ): Promise<number> {
     // BR33: Time-to-hire metric
-    const hiredApps = applications.filter(app => app.status === ApplicationStatus.HIRED);
-    
+    const hiredApps = applications.filter(
+      (app) => app.status === ApplicationStatus.HIRED,
+    );
+
     if (hiredApps.length === 0) return 0;
 
     let totalDays = 0;
     for (const app of hiredApps) {
-      const history = await this.getApplicationHistory((app as any)._id.toString());
+      const history = await this.getApplicationHistory(
+        (app as any)._id.toString(),
+      );
       if (history.length > 0) {
         const firstEntry = history[0] as any;
         const lastEntry = history[history.length - 1] as any;
         const days = Math.ceil(
-          (lastEntry.createdAt.getTime() - firstEntry.createdAt.getTime()) / (1000 * 60 * 60 * 24)
+          (lastEntry.createdAt.getTime() - firstEntry.createdAt.getTime()) /
+            (1000 * 60 * 60 * 24),
         );
         totalDays += days;
       }
@@ -941,9 +1041,21 @@ export class RecruitmentService {
     if (total === 0) return {};
 
     return {
-      screeningToInterview: this.calculateStageConversion(applications, ApplicationStage.SCREENING, ApplicationStage.DEPARTMENT_INTERVIEW),
-      interviewToOffer: this.calculateStageConversion(applications, ApplicationStage.DEPARTMENT_INTERVIEW, ApplicationStage.OFFER),
-      offerToHired: (applications.filter(a => a.status === ApplicationStatus.HIRED).length / total) * 100,
+      screeningToInterview: this.calculateStageConversion(
+        applications,
+        ApplicationStage.SCREENING,
+        ApplicationStage.DEPARTMENT_INTERVIEW,
+      ),
+      interviewToOffer: this.calculateStageConversion(
+        applications,
+        ApplicationStage.DEPARTMENT_INTERVIEW,
+        ApplicationStage.OFFER,
+      ),
+      offerToHired:
+        (applications.filter((a) => a.status === ApplicationStatus.HIRED)
+          .length /
+          total) *
+        100,
     };
   }
 
@@ -952,10 +1064,13 @@ export class RecruitmentService {
     fromStage: ApplicationStage,
     toStage: ApplicationStage,
   ): number {
-    const atFromStage = applications.filter(a => a.currentStage === fromStage).length;
+    const atFromStage = applications.filter(
+      (a) => a.currentStage === fromStage,
+    ).length;
     const reachedToStage = applications.filter(
-      a => a.currentStage === toStage || 
-      (a.currentStage as any) > (toStage as any)
+      (a) =>
+        a.currentStage === toStage ||
+        (a.currentStage as any) > (toStage as any),
     ).length;
 
     return atFromStage > 0 ? (reachedToStage / atFromStage) * 100 : 0;
@@ -963,7 +1078,7 @@ export class RecruitmentService {
 
   private async getReferralStats(applications: Application[]): Promise<any> {
     // BR14, BR25: Referral statistics
-    const candidateIds = applications.map(a => a.candidateId);
+    const candidateIds = applications.map((a) => a.candidateId);
     const referrals = await this.referralModel
       .find({ candidateId: { $in: candidateIds } })
       .exec();

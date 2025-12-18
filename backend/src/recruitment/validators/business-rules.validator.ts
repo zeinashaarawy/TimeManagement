@@ -10,20 +10,22 @@ import {
  * Validator for BR2: Job requisition must include required fields
  */
 @ValidatorConstraint({ async: false })
-export class IsValidJobRequisitionConstraint implements ValidatorConstraintInterface {
+export class IsValidJobRequisitionConstraint
+  implements ValidatorConstraintInterface
+{
   validate(value: any, args: ValidationArguments) {
     const object = args.object as any;
-    
+
     // BR2: Validate required fields
     if (!object.requisitionId || !object.openings || !object.hiringManagerId) {
       return false;
     }
-    
+
     // BR2: Openings must be at least 1
     if (object.openings < 1) {
       return false;
     }
-    
+
     return true;
   }
 
@@ -33,7 +35,7 @@ export class IsValidJobRequisitionConstraint implements ValidatorConstraintInter
 }
 
 export function IsValidJobRequisition(validationOptions?: ValidationOptions) {
-  return function (object: Object, propertyName: string) {
+  return function (object: object, propertyName: string) {
     registerDecorator({
       target: object.constructor,
       propertyName: propertyName,
@@ -60,7 +62,7 @@ export class HasConsentConstraint implements ValidatorConstraintInterface {
 }
 
 export function HasConsent(validationOptions?: ValidationOptions) {
-  return function (object: Object, propertyName: string) {
+  return function (object: object, propertyName: string) {
     registerDecorator({
       target: object.constructor,
       propertyName: propertyName,
@@ -75,7 +77,9 @@ export function HasConsent(validationOptions?: ValidationOptions) {
  * Validator for BR19: Interview panel must have members
  */
 @ValidatorConstraint({ async: false })
-export class HasInterviewPanelConstraint implements ValidatorConstraintInterface {
+export class HasInterviewPanelConstraint
+  implements ValidatorConstraintInterface
+{
   validate(value: any[], args: ValidationArguments) {
     // BR19: At least one panel member required
     return Array.isArray(value) && value.length > 0;
@@ -87,7 +91,7 @@ export class HasInterviewPanelConstraint implements ValidatorConstraintInterface
 }
 
 export function HasInterviewPanel(validationOptions?: ValidationOptions) {
-  return function (object: Object, propertyName: string) {
+  return function (object: object, propertyName: string) {
     registerDecorator({
       target: object.constructor,
       propertyName: propertyName,
@@ -102,7 +106,9 @@ export function HasInterviewPanel(validationOptions?: ValidationOptions) {
  * Validator for BR10, BR21, BR22: Assessment scores must be within valid range
  */
 @ValidatorConstraint({ async: false })
-export class IsValidAssessmentScoreConstraint implements ValidatorConstraintInterface {
+export class IsValidAssessmentScoreConstraint
+  implements ValidatorConstraintInterface
+{
   validate(value: number, args: ValidationArguments) {
     // BR21: Scores must be within pre-set range (1-10)
     return typeof value === 'number' && value >= 1 && value <= 10;
@@ -114,7 +120,7 @@ export class IsValidAssessmentScoreConstraint implements ValidatorConstraintInte
 }
 
 export function IsValidAssessmentScore(validationOptions?: ValidationOptions) {
-  return function (object: Object, propertyName: string) {
+  return function (object: object, propertyName: string) {
     registerDecorator({
       target: object.constructor,
       propertyName: propertyName,
@@ -132,17 +138,17 @@ export function IsValidAssessmentScore(validationOptions?: ValidationOptions) {
 export class IsValidOfferConstraint implements ValidatorConstraintInterface {
   validate(value: any, args: ValidationArguments) {
     const object = args.object as any;
-    
+
     // BR26: Offer must include salary, role, and content
     if (!object.grossSalary || !object.role || !object.content) {
       return false;
     }
-    
+
     // BR26: Salary must be positive
     if (object.grossSalary <= 0) {
       return false;
     }
-    
+
     return true;
   }
 
@@ -152,7 +158,7 @@ export class IsValidOfferConstraint implements ValidatorConstraintInterface {
 }
 
 export function IsValidOffer(validationOptions?: ValidationOptions) {
-  return function (object: Object, propertyName: string) {
+  return function (object: object, propertyName: string) {
     registerDecorator({
       target: object.constructor,
       propertyName: propertyName,
@@ -162,4 +168,3 @@ export function IsValidOffer(validationOptions?: ValidationOptions) {
     });
   };
 }
-

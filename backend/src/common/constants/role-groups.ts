@@ -1,8 +1,6 @@
 import { SystemRole } from '../../employee-profile/enums/employee-profile.enums';
 
-export const EMPLOYEE_ROLES = [
-  SystemRole.DEPARTMENT_EMPLOYEE,
-];
+export const EMPLOYEE_ROLES = [SystemRole.DEPARTMENT_EMPLOYEE];
 
 export const MANAGER_ROLES = [
   SystemRole.DEPARTMENT_HEAD, // Only real manager of employees

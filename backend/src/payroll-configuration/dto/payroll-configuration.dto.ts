@@ -17,4 +17,3 @@ export class CreateConfigurationDto {
 export class UpdateConfigurationDto {
   payload: Record<string, any>;
 }
-

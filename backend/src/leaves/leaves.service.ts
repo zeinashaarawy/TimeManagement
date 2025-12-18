@@ -12,11 +12,25 @@ import { Model, Types } from 'mongoose';
 import { LeaveType, LeaveTypeDocument } from './models/leave-type.schema';
 import { LeaveCategory } from './models/leave-category.schema';
 import { LeavePolicy, LeavePolicyDocument } from './models/leave-policy.schema';
-import { LeaveRequest, LeaveRequestDocument } from './models/leave-request.schema';
+import {
+  LeaveRequest,
+  LeaveRequestDocument,
+} from './models/leave-request.schema';
 import { Attachment } from './models/attachment.schema';
-import { LeaveEntitlement, LeaveEntitlementDocument } from './models/leave-entitlement.schema';
-import { LeaveAdjustment, LeaveAdjustmentDocument } from './models/leave-adjustment.schema';
+import {
+  LeaveEntitlement,
+  LeaveEntitlementDocument,
+} from './models/leave-entitlement.schema';
+import {
+  LeaveAdjustment,
+  LeaveAdjustmentDocument,
+} from './models/leave-adjustment.schema';
 import { Calendar, CalendarDocument } from './models/calendar.schema';
+import {
+  Holiday,
+  HolidayDocument,
+} from '../time-management/holiday/schemas/holiday.schema';
+import { HolidayType } from '../time-management/enums/index';
 
 // DTOs
 import { CreateLeaveTypeDto } from './dto/create-leave-type.dto';
@@ -63,6 +77,9 @@ export class LeavesService {
 
     @InjectModel(Calendar.name)
     private calendarModel: Model<CalendarDocument>,
+
+    @InjectModel(Holiday.name)
+    private holidayModel: Model<HolidayDocument>,
   ) {}
 
   // ============================================================
@@ -70,8 +87,13 @@ export class LeavesService {
   // ============================================================
   leaveType = {
     create: async (dto: CreateLeaveTypeDto) => {
-      const exists = await this.leaveTypeModel.findOne({ code: dto.code }).exec();
-      if (exists) throw new ConflictException(`Leave type with code '${dto.code}' already exists`);
+      const exists = await this.leaveTypeModel
+        .findOne({ code: dto.code })
+        .exec();
+      if (exists)
+        throw new ConflictException(
+          `Leave type with code '${dto.code}' already exists`,
+        );
       return new this.leaveTypeModel(dto).save();
     },
 
@@ -81,13 +103,15 @@ export class LeavesService {
 
     findOne: async (id: string) => {
       const doc = await this.leaveTypeModel.findById(id).exec();
-      if (!doc) throw new NotFoundException(`Leave type with ID '${id}' not found`);
+      if (!doc)
+        throw new NotFoundException(`Leave type with ID '${id}' not found`);
       return doc;
     },
 
     findByCode: async (code: string) => {
       const doc = await this.leaveTypeModel.findOne({ code }).exec();
-      if (!doc) throw new NotFoundException(`Leave type with code '${code}' not found`);
+      if (!doc)
+        throw new NotFoundException(`Leave type with code '${code}' not found`);
       return doc;
     },
 
@@ -97,17 +121,23 @@ export class LeavesService {
           .findOne({ code: (dto as any).code, _id: { $ne: id } })
           .exec();
         if (exists)
-          throw new ConflictException(`Leave type with code '${(dto as any).code}' already exists`);
+          throw new ConflictException(
+            `Leave type with code '${(dto as any).code}' already exists`,
+          );
       }
 
-      const updated = await this.leaveTypeModel.findByIdAndUpdate(id, dto, { new: true }).exec();
-      if (!updated) throw new NotFoundException(`Leave type with ID '${id}' not found`);
+      const updated = await this.leaveTypeModel
+        .findByIdAndUpdate(id, dto, { new: true })
+        .exec();
+      if (!updated)
+        throw new NotFoundException(`Leave type with ID '${id}' not found`);
       return updated;
     },
 
     remove: async (id: string) => {
       const result = await this.leaveTypeModel.findByIdAndDelete(id).exec();
-      if (!result) throw new NotFoundException(`Leave type with ID '${id}' not found`);
+      if (!result)
+        throw new NotFoundException(`Leave type with ID '${id}' not found`);
     },
   };
 
@@ -118,7 +148,9 @@ export class LeavesService {
     create: async (dto: CreatePolicyDto) => {
       const doc = new this.leavePolicyModel({
         ...dto,
-        leaveTypeId: dto.leaveTypeId ? new Types.ObjectId(dto.leaveTypeId) : undefined,
+        leaveTypeId: dto.leaveTypeId
+          ? new Types.ObjectId(dto.leaveTypeId)
+          : undefined,
       });
       return doc.save();
     },
@@ -149,14 +181,18 @@ export class LeavesService {
     },
 
     update: async (id: string, dto: UpdatePolicyDto) => {
-      const updated = await this.leavePolicyModel.findByIdAndUpdate(id, dto, { new: true }).exec();
-      if (!updated) throw new NotFoundException(`Policy with ID '${id}' not found`);
+      const updated = await this.leavePolicyModel
+        .findByIdAndUpdate(id, dto, { new: true })
+        .exec();
+      if (!updated)
+        throw new NotFoundException(`Policy with ID '${id}' not found`);
       return updated;
     },
 
     remove: async (id: string) => {
       const deleted = await this.leavePolicyModel.findByIdAndDelete(id).exec();
-      if (!deleted) throw new NotFoundException(`Policy with ID '${id}' not found`);
+      if (!deleted)
+        throw new NotFoundException(`Policy with ID '${id}' not found`);
     },
   };
 
@@ -168,7 +204,8 @@ export class LeavesService {
       const from = new Date(dto.startDate);
       const to = new Date(dto.endDate);
 
-      if (from > to) throw new BadRequestException('startDate must be <= endDate');
+      if (from > to)
+        throw new BadRequestException('startDate must be <= endDate');
 
       const durationDays = (to.getTime() - from.getTime()) / 86400000 + 1;
 
@@ -178,7 +215,9 @@ export class LeavesService {
         dates: { from, to },
         durationDays,
         justification: dto.justification,
-        attachmentId: dto.attachmentId ? new Types.ObjectId(dto.attachmentId) : undefined,
+        attachmentId: dto.attachmentId
+          ? new Types.ObjectId(dto.attachmentId)
+          : undefined,
         approvalFlow: [],
         status: LeaveStatus.PENDING,
         irregularPatternFlag: false,
@@ -204,19 +243,25 @@ export class LeavesService {
     update: async (id: string, dto: UpdateLeaveRequestDto) => {
       const updatePayload: any = {};
 
-      if ((dto as any).startDate) updatePayload['dates.from'] = new Date((dto as any).startDate);
-      if ((dto as any).endDate) updatePayload['dates.to'] = new Date((dto as any).endDate);
+      if ((dto as any).startDate)
+        updatePayload['dates.from'] = new Date((dto as any).startDate);
+      if ((dto as any).endDate)
+        updatePayload['dates.to'] = new Date((dto as any).endDate);
 
       if ((dto as any).startDate && (dto as any).endDate) {
         const f = new Date((dto as any).startDate);
         const t = new Date((dto as any).endDate);
-        if (f > t) throw new BadRequestException('startDate must be <= endDate');
+        if (f > t)
+          throw new BadRequestException('startDate must be <= endDate');
       }
 
-      if ((dto as any).justification) updatePayload.justification = (dto as any).justification;
+      if ((dto as any).justification)
+        updatePayload.justification = (dto as any).justification;
 
       if ((dto as any).attachmentId)
-        updatePayload.attachmentId = new Types.ObjectId((dto as any).attachmentId);
+        updatePayload.attachmentId = new Types.ObjectId(
+          (dto as any).attachmentId,
+        );
 
       const doc = await this.requestModel
         .findByIdAndUpdate(id, { $set: updatePayload }, { new: true })
@@ -234,7 +279,9 @@ export class LeavesService {
       doc.approvalFlow.push({
         role: 'system',
         status: 'cancelled',
-        decidedBy: requestedById ? new Types.ObjectId(requestedById) : undefined,
+        decidedBy: requestedById
+          ? new Types.ObjectId(requestedById)
+          : undefined,
         decidedAt: new Date(),
       });
 
@@ -320,16 +367,24 @@ export class LeavesService {
 
       if (!doc) throw new NotFoundException('Entitlement not found');
 
-      if ((dto as any).totalDays !== undefined) doc.yearlyEntitlement = (dto as any).totalDays;
-      if ((dto as any).usedDays !== undefined) doc.taken = (dto as any).usedDays;
-      if ((dto as any).pendingDays !== undefined) doc.pending = (dto as any).pendingDays;
+      if ((dto as any).totalDays !== undefined)
+        doc.yearlyEntitlement = (dto as any).totalDays;
+      if ((dto as any).usedDays !== undefined)
+        doc.taken = (dto as any).usedDays;
+      if ((dto as any).pendingDays !== undefined)
+        doc.pending = (dto as any).pendingDays;
 
-      doc.remaining = doc.yearlyEntitlement + doc.carryForward - doc.taken - doc.pending;
+      doc.remaining =
+        doc.yearlyEntitlement + doc.carryForward - doc.taken - doc.pending;
 
       return doc.save();
     },
 
-    adjustBalance: async (employeeId: string, leaveTypeId: string, deltaDays: number) => {
+    adjustBalance: async (
+      employeeId: string,
+      leaveTypeId: string,
+      deltaDays: number,
+    ) => {
       const doc = await this.entitlementModel.findOne({
         employeeId: new Types.ObjectId(employeeId),
         leaveTypeId: new Types.ObjectId(leaveTypeId),
@@ -338,7 +393,8 @@ export class LeavesService {
       if (!doc) throw new NotFoundException('Entitlement not found');
 
       doc.taken += deltaDays;
-      doc.remaining = doc.yearlyEntitlement + doc.carryForward - doc.taken - doc.pending;
+      doc.remaining =
+        doc.yearlyEntitlement + doc.carryForward - doc.taken - doc.pending;
 
       if (doc.remaining < 0)
         throw new BadRequestException('Insufficient leave balance');
@@ -347,7 +403,9 @@ export class LeavesService {
     },
 
     removeByEmployee: async (employeeId: string) =>
-      this.entitlementModel.deleteMany({ employeeId: new Types.ObjectId(employeeId) }).exec(),
+      this.entitlementModel
+        .deleteMany({ employeeId: new Types.ObjectId(employeeId) })
+        .exec(),
   };
 
   // ============================================================
@@ -398,33 +456,151 @@ export class LeavesService {
   // ============================================================
   calendar = {
     create: async (dto: CreateCalendarDto) => {
-      const exists = await this.calendarModel.findOne({ year: dto.year }).exec();
-      if (exists) throw new ConflictException(`Calendar for year ${dto.year} already exists`);
-      return new this.calendarModel(dto).save();
+      const exists = await this.calendarModel
+        .findOne({ year: dto.year })
+        .exec();
+      if (exists)
+        throw new ConflictException(
+          `Calendar for year ${dto.year} already exists`,
+        );
+
+      // If holidays are provided, create Holiday documents first and get their ObjectIds
+      const holidayIds: Types.ObjectId[] = [];
+      if (dto.holidays && dto.holidays.length > 0) {
+        for (const holidayDto of dto.holidays) {
+          // Map CreateHolidayDto to Holiday schema
+          const holidayDate = new Date(holidayDto.date);
+          holidayDate.setHours(0, 0, 0, 0); // Normalize to start of day
+          const holidayType = holidayDto.type as HolidayType;
+
+          // Check if holiday already exists (by date and name to avoid duplicates)
+          const startOfDay = new Date(holidayDate);
+          startOfDay.setHours(0, 0, 0, 0);
+          const endOfDay = new Date(holidayDate);
+          endOfDay.setHours(23, 59, 59, 999);
+
+          let existingHoliday = await this.holidayModel
+            .findOne({
+              startDate: { $gte: startOfDay, $lte: endOfDay },
+              name: holidayDto.name,
+            })
+            .exec();
+
+          if (!existingHoliday) {
+            // Create new Holiday document
+            existingHoliday = await this.holidayModel.create({
+              type: holidayType,
+              startDate: holidayDate,
+              endDate: holidayDate, // Same day if no end date specified
+              name: holidayDto.name,
+              active: true,
+            });
+          }
+
+          holidayIds.push(existingHoliday._id);
+        }
+      }
+
+      // Create calendar with Holiday ObjectIds and other fields
+      const calendarData: any = {
+        year: dto.year,
+        holidays: holidayIds,
+      };
+
+      if (dto.blockedPeriods) {
+        calendarData.blockedPeriods = dto.blockedPeriods.map((bp) => ({
+          from: new Date(bp.startDate),
+          to: new Date(bp.endDate),
+          reason: bp.reason,
+        }));
+      }
+
+      return new this.calendarModel(calendarData).save();
     },
 
     findAll: async () => this.calendarModel.find().exec(),
 
     findByYear: async (year: number) => {
-      const doc = await this.calendarModel.findOne({ year }).exec();
-      if (!doc) throw new NotFoundException(`Calendar for year ${year} not found`);
+      const doc = await this.calendarModel
+        .findOne({ year })
+        .populate({
+          path: 'holidays',
+          model: 'Holiday',
+        })
+        .exec();
+      if (!doc)
+        throw new NotFoundException(`Calendar for year ${year} not found`);
       return doc;
     },
 
     update: async (year: number, dto: UpdateCalendarDto) => {
-      const doc = await this.calendarModel.findOneAndUpdate({ year }, dto, { new: true }).exec();
-      if (!doc) throw new NotFoundException(`Calendar for year ${year} not found`);
-      return doc;
+      const doc = await this.calendarModel.findOne({ year }).exec();
+      if (!doc)
+        throw new NotFoundException(`Calendar for year ${year} not found`);
+
+      // If holidays are provided, create Holiday documents first and get their ObjectIds
+      if (dto.holidays && dto.holidays.length > 0) {
+        const holidayIds: Types.ObjectId[] = [];
+
+        for (const holidayDto of dto.holidays) {
+          // Map CreateHolidayDto to Holiday schema
+          const holidayDate = new Date(holidayDto.date);
+          holidayDate.setHours(0, 0, 0, 0); // Normalize to start of day
+          const holidayType = holidayDto.type as HolidayType;
+
+          // Check if holiday already exists (by date and name to avoid duplicates)
+          const startOfDay = new Date(holidayDate);
+          startOfDay.setHours(0, 0, 0, 0);
+          const endOfDay = new Date(holidayDate);
+          endOfDay.setHours(23, 59, 59, 999);
+
+          let existingHoliday = await this.holidayModel
+            .findOne({
+              startDate: { $gte: startOfDay, $lte: endOfDay },
+              name: holidayDto.name,
+            })
+            .exec();
+
+          if (!existingHoliday) {
+            // Create new Holiday document
+            existingHoliday = await this.holidayModel.create({
+              type: holidayType,
+              startDate: holidayDate,
+              endDate: holidayDate, // Same day if no end date specified
+              name: holidayDto.name,
+              active: true,
+            });
+          }
+
+          holidayIds.push(existingHoliday._id);
+        }
+
+        // Update calendar with Holiday ObjectIds
+        doc.holidays = holidayIds;
+      }
+
+      // Update other fields if provided
+      if (dto.blockedPeriods !== undefined) {
+        doc.blockedPeriods = dto.blockedPeriods.map((bp) => ({
+          from: new Date(bp.startDate),
+          to: new Date(bp.endDate),
+          reason: bp.reason,
+        }));
+      }
+
+      return await doc.save();
     },
 
     remove: async (year: number) => {
       const result = await this.calendarModel.findOneAndDelete({ year }).exec();
-      if (!result) throw new NotFoundException(`Calendar for year ${year} not found`);
+      if (!result)
+        throw new NotFoundException(`Calendar for year ${year} not found`);
     },
 
     addBlockedPeriod: async (year: number, dto: CreateBlockedPeriodDto) => {
       const cal = await this.calendarModel.findOne({ year }).exec();
-      if (!cal) throw new NotFoundException(`Calendar for year ${year} not found`);
+      if (!cal)
+        throw new NotFoundException(`Calendar for year ${year} not found`);
 
       const start = new Date(dto.startDate);
       const end = new Date(dto.endDate);
@@ -443,7 +619,8 @@ export class LeavesService {
 
     removeBlockedPeriod: async (year: number, index: number) => {
       const cal = await this.calendarModel.findOne({ year }).exec();
-      if (!cal) throw new NotFoundException(`Calendar for year ${year} not found`);
+      if (!cal)
+        throw new NotFoundException(`Calendar for year ${year} not found`);
 
       if (index < 0 || index >= cal.blockedPeriods.length)
         throw new BadRequestException('Invalid blocked period index');

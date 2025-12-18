@@ -1,6 +1,6 @@
-import { Schema, Prop, SchemaFactory } from "@nestjs/mongoose";
-import { Types } from "mongoose";
-import { HydratedDocument } from "mongoose";
+import { Schema, Prop, SchemaFactory } from '@nestjs/mongoose';
+import { Types } from 'mongoose';
+import { HydratedDocument } from 'mongoose';
 
 /**
  * Policy Scope - determines who the policy applies to
@@ -32,7 +32,7 @@ export enum RoundingRule {
  * Overtime Rule Configuration
  * Embedded in TimePolicy (not a separate collection)
  * Contains calculation parameters for overtime computation
- * 
+ *
  * Note: This is different from the OvertimeRule schema in schedule/
  * which is a standalone document. This config is embedded in policies.
  */
@@ -47,7 +47,7 @@ export type OvertimeRuleConfig = {
 /**
  * Lateness Rule Configuration
  * Embedded in TimePolicy for lateness penalty calculation
- * 
+ *
  * Note: This extends the basic LatenessRule schema with additional fields
  * needed for policy computation (caps, cumulative thresholds)
  */
@@ -135,4 +135,3 @@ export class TimePolicy {
 }
 
 export const TimePolicySchema = SchemaFactory.createForClass(TimePolicy);
-

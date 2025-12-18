@@ -2,13 +2,29 @@ import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 
 import { LeaveType, LeaveTypeSchema } from './models/leave-type.schema';
-import { LeaveCategory, LeaveCategorySchema } from './models/leave-category.schema';
+import {
+  LeaveCategory,
+  LeaveCategorySchema,
+} from './models/leave-category.schema';
 import { LeavePolicy, LeavePolicySchema } from './models/leave-policy.schema';
-import { LeaveRequest, LeaveRequestSchema } from './models/leave-request.schema';
+import {
+  LeaveRequest,
+  LeaveRequestSchema,
+} from './models/leave-request.schema';
 import { Attachment, AttachmentSchema } from './models/attachment.schema';
-import { LeaveEntitlement, LeaveEntitlementSchema } from './models/leave-entitlement.schema';
-import { LeaveAdjustment, LeaveAdjustmentSchema } from './models/leave-adjustment.schema';
+import {
+  LeaveEntitlement,
+  LeaveEntitlementSchema,
+} from './models/leave-entitlement.schema';
+import {
+  LeaveAdjustment,
+  LeaveAdjustmentSchema,
+} from './models/leave-adjustment.schema';
 import { Calendar, CalendarSchema } from './models/calendar.schema';
+import {
+  Holiday,
+  HolidaySchema,
+} from '../time-management/holiday/schemas/holiday.schema';
 import { EmployeeProfileModule } from '../employee-profile/employee-profile.module';
 import { TimeManagementModule } from '../time-management/time-management.module';
 
@@ -26,6 +42,7 @@ import { LeavesController } from './leaves.controller';
       { name: LeaveEntitlement.name, schema: LeaveEntitlementSchema },
       { name: LeaveAdjustment.name, schema: LeaveAdjustmentSchema },
       { name: Calendar.name, schema: CalendarSchema },
+      { name: Holiday.name, schema: HolidaySchema },
     ]),
     EmployeeProfileModule,
     TimeManagementModule,

@@ -20,8 +20,12 @@ import { ResolveDisputeDto } from './dto/resolve-dispute.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
-import { ADMIN_ROLES, EMPLOYEE_ROLES, HR_ROLES, MANAGER_ROLES } from '../common/constants/role-groups';
-
+import {
+  ADMIN_ROLES,
+  EMPLOYEE_ROLES,
+  HR_ROLES,
+  MANAGER_ROLES,
+} from '../common/constants/role-groups';
 
 @Controller('performance')
 export class PerformanceController {
@@ -78,7 +82,7 @@ export class PerformanceController {
   }
 
   @Get('cycles')
-   @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(...HR_ROLES, ...MANAGER_ROLES, ...ADMIN_ROLES)
   getAllCycles() {
     return this.performanceService.getAllCycles();
@@ -123,7 +127,6 @@ export class PerformanceController {
   // APPRAISALS (MANAGER + HR)
   // ======================================================
 
-
   @Post('appraisals')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(...MANAGER_ROLES, ...ADMIN_ROLES)
@@ -144,9 +147,8 @@ export class PerformanceController {
     return this.performanceService.updateAppraisal(id, dto, managerProfileId);
   }
 
-
   @Patch('appraisals/:id/status')
-   @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(...MANAGER_ROLES, ...ADMIN_ROLES)
   updateAppraisalStatus(
     @Param('id') id: string,
@@ -154,9 +156,12 @@ export class PerformanceController {
     @Req() req: any,
   ) {
     const managerProfileId = req.user.id;
-    return this.performanceService.updateAppraisalStatus(id, dto, managerProfileId);
+    return this.performanceService.updateAppraisalStatus(
+      id,
+      dto,
+      managerProfileId,
+    );
   }
-
 
   @Patch('appraisals/:id/publish')
   @UseGuards(JwtAuthGuard, RolesGuard)
@@ -167,7 +172,11 @@ export class PerformanceController {
     @Req() req: any,
   ) {
     const hrEmployeeProfileId = req.user.id;
-    return this.performanceService.publishAppraisal(id, hrEmployeeProfileId, dto);
+    return this.performanceService.publishAppraisal(
+      id,
+      hrEmployeeProfileId,
+      dto,
+    );
   }
 
   @Get('cycles/:cycleId/appraisals')
@@ -189,9 +198,8 @@ export class PerformanceController {
     return this.performanceService.findMyAppraisals(employeeProfileId);
   }
 
-
   @Get('my-appraisals/:id')
-   @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(...EMPLOYEE_ROLES)
   getMyAppraisalById(@Param('id') id: string, @Req() req: any) {
     const employeeProfileId = req.user.id;
@@ -201,7 +209,6 @@ export class PerformanceController {
   // ======================================================
   // EMPLOYEE ACKNOWLEDGEMENT
   // ======================================================
-
 
   @Patch('my-appraisals/:id')
   @UseGuards(JwtAuthGuard, RolesGuard)
@@ -219,26 +226,25 @@ export class PerformanceController {
       body.employeeAcknowledgementComment,
     );
   }
-@Patch('cycles/:id/publish-results')
-@UseGuards(JwtAuthGuard, RolesGuard)
-@Roles(...HR_ROLES, ...ADMIN_ROLES)
-publishCycleResults(@Param('id') id: string) {
-  return this.performanceService.publishCycleResults(id);
-}
-@Delete('disputes/:id')
-@UseGuards(JwtAuthGuard, RolesGuard)
-@Roles(...HR_ROLES, ...ADMIN_ROLES)
-deleteDispute(@Param('id') id: string) {
-  return this.performanceService.deleteDispute(id);
-}
+  @Patch('cycles/:id/publish-results')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(...HR_ROLES, ...ADMIN_ROLES)
+  publishCycleResults(@Param('id') id: string) {
+    return this.performanceService.publishCycleResults(id);
+  }
+  @Delete('disputes/:id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(...HR_ROLES, ...ADMIN_ROLES)
+  deleteDispute(@Param('id') id: string) {
+    return this.performanceService.deleteDispute(id);
+  }
 
   // ======================================================
   // DISPUTES
   // ======================================================
 
-
   @Post('appraisals/:id/disputes')
-    @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(...EMPLOYEE_ROLES)
   createDispute(
     @Param('id') appraisalId: string,
@@ -246,7 +252,11 @@ deleteDispute(@Param('id') id: string) {
     @Req() req: any,
   ) {
     const employeeProfileId = req.user.id;
-    return this.performanceService.createDispute(appraisalId, dto, employeeProfileId);
+    return this.performanceService.createDispute(
+      appraisalId,
+      dto,
+      employeeProfileId,
+    );
   }
 
   @Get('disputes')
@@ -256,19 +266,21 @@ deleteDispute(@Param('id') id: string) {
     return this.performanceService.listDisputes(status);
   }
 
-
-@Patch('disputes/:id/resolve')
-@UseGuards(JwtAuthGuard, RolesGuard)
-@Roles(...HR_ROLES, ...ADMIN_ROLES)
-resolveDispute(@Param('id') id: string, @Body() dto: ResolveDisputeDto, @Req() req: any) {
-  const hrEmployeeProfileId = req.user.id;
-  return this.performanceService.resolveDispute(id, dto, hrEmployeeProfileId);
-}
-@Get('disputes/:id')
-@UseGuards(JwtAuthGuard, RolesGuard)
-@Roles(...HR_ROLES, ...MANAGER_ROLES, ...ADMIN_ROLES, ...EMPLOYEE_ROLES)
-getDisputeById(@Param('id') id: string) {
-  return this.performanceService.getDisputeById(id);
-}
-
+  @Patch('disputes/:id/resolve')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(...HR_ROLES, ...ADMIN_ROLES)
+  resolveDispute(
+    @Param('id') id: string,
+    @Body() dto: ResolveDisputeDto,
+    @Req() req: any,
+  ) {
+    const hrEmployeeProfileId = req.user.id;
+    return this.performanceService.resolveDispute(id, dto, hrEmployeeProfileId);
+  }
+  @Get('disputes/:id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(...HR_ROLES, ...MANAGER_ROLES, ...ADMIN_ROLES, ...EMPLOYEE_ROLES)
+  getDisputeById(@Param('id') id: string) {
+    return this.performanceService.getDisputeById(id);
+  }
 }

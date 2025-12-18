@@ -39,9 +39,18 @@ export class ShiftExpirySchedulerService {
    * Manual trigger for testing (can be called via API endpoint if needed)
    */
   async triggerExpiryDetection(daysBeforeExpiry: number = 30): Promise<number> {
+    this.logger.log('🔔 triggerExpiryDetection called in scheduler service');
     this.logger.log(
-      `Manually triggering expiry detection (${daysBeforeExpiry} days before expiry)`,
+      `   Manually triggering expiry detection (${daysBeforeExpiry} days before expiry)`,
     );
-    return await this.shiftExpiryService.detectExpiringShifts(daysBeforeExpiry);
+    try {
+      const result =
+        await this.shiftExpiryService.detectExpiringShifts(daysBeforeExpiry);
+      this.logger.log(`   ✅ Scheduler service completed, result: ${result}`);
+      return result;
+    } catch (error: any) {
+      this.logger.error('   ❌ Error in scheduler service:', error);
+      throw error;
+    }
   }
 }

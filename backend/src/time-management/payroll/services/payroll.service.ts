@@ -1,11 +1,33 @@
-import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  BadRequestException,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
-import { PayrollSyncLog, PayrollSyncLogDocument, PayrollSyncStatus } from '../schemas/payroll-sync-log.schema';
-import { AttendanceRecord, AttendanceRecordDocument } from '../../attendance/schemas/attendance-record.schema';
-import { PenaltyRecord, PenaltyRecordDocument, PenaltyStatus } from '../../policy/schemas/penalty-record.schema';
-import { OvertimeRecord, OvertimeRecordDocument, OvertimeStatus } from '../../policy/schemas/overtime-record.schema';
-import { TimeException, TimeExceptionDocument } from '../../attendance/schemas/time-exception.schema';
+import {
+  PayrollSyncLog,
+  PayrollSyncLogDocument,
+  PayrollSyncStatus,
+} from '../schemas/payroll-sync-log.schema';
+import {
+  AttendanceRecord,
+  AttendanceRecordDocument,
+} from '../../attendance/schemas/attendance-record.schema';
+import {
+  PenaltyRecord,
+  PenaltyRecordDocument,
+  PenaltyStatus,
+} from '../../policy/schemas/penalty-record.schema';
+import {
+  OvertimeRecord,
+  OvertimeRecordDocument,
+  OvertimeStatus,
+} from '../../policy/schemas/overtime-record.schema';
+import {
+  TimeException,
+  TimeExceptionDocument,
+} from '../../attendance/schemas/time-exception.schema';
 import { TimeExceptionStatus } from '../../enums/index';
 
 export interface PayrollPayload {
@@ -48,11 +70,16 @@ export interface PayrollPayload {
 @Injectable()
 export class PayrollService {
   constructor(
-    @InjectModel(PayrollSyncLog.name) private syncLogModel: Model<PayrollSyncLogDocument>,
-    @InjectModel(AttendanceRecord.name) private attendanceModel: Model<AttendanceRecordDocument>,
-    @InjectModel(PenaltyRecord.name) private penaltyModel: Model<PenaltyRecordDocument>,
-    @InjectModel(OvertimeRecord.name) private overtimeModel: Model<OvertimeRecordDocument>,
-    @InjectModel(TimeException.name) private exceptionModel: Model<TimeExceptionDocument>,
+    @InjectModel(PayrollSyncLog.name)
+    private syncLogModel: Model<PayrollSyncLogDocument>,
+    @InjectModel(AttendanceRecord.name)
+    private attendanceModel: Model<AttendanceRecordDocument>,
+    @InjectModel(PenaltyRecord.name)
+    private penaltyModel: Model<PenaltyRecordDocument>,
+    @InjectModel(OvertimeRecord.name)
+    private overtimeModel: Model<OvertimeRecordDocument>,
+    @InjectModel(TimeException.name)
+    private exceptionModel: Model<TimeExceptionDocument>,
   ) {}
 
   /**
@@ -76,7 +103,9 @@ export class PayrollService {
       attendanceQuery.employeeId = { $in: employeeIds };
     }
 
-    const attendanceRecords = await this.attendanceModel.find(attendanceQuery).exec();
+    const attendanceRecords = await this.attendanceModel
+      .find(attendanceQuery)
+      .exec();
 
     // Group by employee
     const employeeMap = new Map<string, any>();
@@ -99,37 +128,52 @@ export class PayrollService {
       const employeeData = employeeMap.get(empId);
 
       // Get approved overtime records
-      const overtimeRecords = await this.overtimeModel.find({
-        attendanceRecordId: record._id,
-        status: OvertimeStatus.APPROVED,
-      }).exec();
+      const overtimeRecords = await this.overtimeModel
+        .find({
+          attendanceRecordId: record._id,
+          status: OvertimeStatus.APPROVED,
+        })
+        .exec();
 
       // Get approved penalty records
-      const penaltyRecords = await this.penaltyModel.find({
-        attendanceRecordId: record._id,
-        status: PenaltyStatus.APPROVED,
-      }).exec();
+      const penaltyRecords = await this.penaltyModel
+        .find({
+          attendanceRecordId: record._id,
+          status: PenaltyStatus.APPROVED,
+        })
+        .exec();
 
-      const overtime = overtimeRecords.map(ot => ({
+      const overtime = overtimeRecords.map((ot) => ({
         minutes: ot.overtimeMinutes,
         multiplier: ot.multiplier,
         amount: ot.calculatedAmount,
         isWeekend: ot.isWeekend,
       }));
 
-      const penalties = penaltyRecords.map(p => ({
+      const penalties = penaltyRecords.map((p) => ({
         type: p.type,
         amount: p.amount,
         minutes: p.minutes,
       }));
 
-      const totalOvertimeMinutes = overtimeRecords.reduce((sum, ot) => sum + ot.overtimeMinutes, 0);
-      const totalOvertimeAmount = overtimeRecords.reduce((sum, ot) => sum + ot.calculatedAmount, 0);
-      const totalPenalties = penaltyRecords.reduce((sum, p) => sum + p.amount, 0);
+      const totalOvertimeMinutes = overtimeRecords.reduce(
+        (sum, ot) => sum + ot.overtimeMinutes,
+        0,
+      );
+      const totalOvertimeAmount = overtimeRecords.reduce(
+        (sum, ot) => sum + ot.calculatedAmount,
+        0,
+      );
+      const totalPenalties = penaltyRecords.reduce(
+        (sum, p) => sum + p.amount,
+        0,
+      );
 
       employeeData.attendanceRecords.push({
         recordId: record._id.toString(),
-        date: record.recordDate?.toISOString().split('T')[0] || new Date().toISOString().split('T')[0],
+        date:
+          record.recordDate?.toISOString().split('T')[0] ||
+          new Date().toISOString().split('T')[0],
         workedMinutes: record.totalWorkMinutes,
         overtime,
         penalties,
@@ -147,9 +191,19 @@ export class PayrollService {
     const summary = {
       totalEmployees: records.length,
       totalRecords: attendanceRecords.length,
-      totalOvertimeMinutes: records.reduce((sum, r) => sum + r.totals.totalOvertimeMinutes, 0),
-      totalPenalties: records.reduce((sum, r) => sum + r.totals.totalPenalties, 0),
-      totalAmount: records.reduce((sum, r) => sum + r.totals.totalOvertimeAmount - r.totals.totalPenalties, 0),
+      totalOvertimeMinutes: records.reduce(
+        (sum, r) => sum + r.totals.totalOvertimeMinutes,
+        0,
+      ),
+      totalPenalties: records.reduce(
+        (sum, r) => sum + r.totals.totalPenalties,
+        0,
+      ),
+      totalAmount: records.reduce(
+        (sum, r) =>
+          sum + r.totals.totalOvertimeAmount - r.totals.totalPenalties,
+        0,
+      ),
     };
 
     return {
@@ -175,7 +229,11 @@ export class PayrollService {
     }
 
     // Generate payload
-    const payload = await this.generatePayrollPayload(periodStart, periodEnd, employeeIds);
+    const payload = await this.generatePayrollPayload(
+      periodStart,
+      periodEnd,
+      employeeIds,
+    );
 
     // Create sync log
     const syncLog = new this.syncLogModel({
@@ -200,9 +258,9 @@ export class PayrollService {
       // TODO: Implement actual external payroll system integration
       // For now, we'll simulate the sync
       // In production, this would make an HTTP call to the payroll system
-      
+
       // Simulate API call delay
-      await new Promise(resolve => setTimeout(resolve, 100));
+      await new Promise((resolve) => setTimeout(resolve, 100));
 
       // Simulate success (in production, check actual response)
       syncLog.status = PayrollSyncStatus.COMPLETED;
@@ -212,13 +270,16 @@ export class PayrollService {
       await syncLog.save();
     } catch (error) {
       syncLog.status = PayrollSyncStatus.FAILED;
-      syncLog.lastError = error instanceof Error ? error.message : 'Unknown error';
-      (syncLog as any).errors = [{
-        employeeId: 'SYSTEM',
-        recordId: 'SYSTEM',
-        error: syncLog.lastError || 'Unknown error',
-        timestamp: new Date(),
-      }];
+      syncLog.lastError =
+        error instanceof Error ? error.message : 'Unknown error';
+      (syncLog as any).errors = [
+        {
+          employeeId: 'SYSTEM',
+          recordId: 'SYSTEM',
+          error: syncLog.lastError || 'Unknown error',
+          timestamp: new Date(),
+        },
+      ];
       await syncLog.save();
       throw error;
     }
@@ -229,7 +290,9 @@ export class PayrollService {
   /**
    * Retry failed payroll sync
    */
-  async retryPayrollSync(syncLogId: Types.ObjectId): Promise<PayrollSyncLogDocument> {
+  async retryPayrollSync(
+    syncLogId: Types.ObjectId,
+  ): Promise<PayrollSyncLogDocument> {
     const syncLog = await this.syncLogModel.findById(syncLogId);
     if (!syncLog) {
       throw new NotFoundException(`Payroll sync log ${syncLogId} not found`);
@@ -251,7 +314,7 @@ export class PayrollService {
       );
 
       // TODO: Implement actual retry logic
-      await new Promise(resolve => setTimeout(resolve, 100));
+      await new Promise((resolve) => setTimeout(resolve, 100));
 
       syncLog.status = PayrollSyncStatus.COMPLETED;
       syncLog.syncedAt = new Date();
@@ -261,7 +324,8 @@ export class PayrollService {
       await syncLog.save();
     } catch (error) {
       syncLog.status = PayrollSyncStatus.FAILED;
-      syncLog.lastError = error instanceof Error ? error.message : 'Unknown error';
+      syncLog.lastError =
+        error instanceof Error ? error.message : 'Unknown error';
       await syncLog.save();
       throw error;
     }
@@ -272,7 +336,9 @@ export class PayrollService {
   /**
    * Get sync status
    */
-  async getSyncStatus(syncLogId: Types.ObjectId): Promise<PayrollSyncLogDocument> {
+  async getSyncStatus(
+    syncLogId: Types.ObjectId,
+  ): Promise<PayrollSyncLogDocument> {
     const syncLog = await this.syncLogModel.findById(syncLogId);
     if (!syncLog) {
       throw new NotFoundException(`Payroll sync log ${syncLogId} not found`);
@@ -283,7 +349,10 @@ export class PayrollService {
   /**
    * Validate pre-payroll requirements
    */
-  async validatePrePayroll(periodStart: Date, periodEnd: Date): Promise<{
+  async validatePrePayroll(
+    periodStart: Date,
+    periodEnd: Date,
+  ): Promise<{
     isValid: boolean;
     issues: string[];
     pendingApprovals: number;
@@ -314,17 +383,23 @@ export class PayrollService {
     }
 
     // Check for pending exceptions
-    const attendanceRecords = await this.attendanceModel.find({
-      recordDate: { $gte: periodStart, $lte: periodEnd },
-    }).exec();
+    const attendanceRecords = await this.attendanceModel
+      .find({
+        recordDate: { $gte: periodStart, $lte: periodEnd },
+      })
+      .exec();
 
     for (const record of attendanceRecords) {
       const exceptions = await this.exceptionModel.find({
         attendanceRecordId: record._id,
-        status: { $in: [TimeExceptionStatus.OPEN, TimeExceptionStatus.PENDING] },
+        status: {
+          $in: [TimeExceptionStatus.OPEN, TimeExceptionStatus.PENDING],
+        },
       });
       if (exceptions.length > 0) {
-        issues.push(`Record ${record._id} has ${exceptions.length} unresolved exceptions`);
+        issues.push(
+          `Record ${record._id} has ${exceptions.length} unresolved exceptions`,
+        );
         inconsistentRecords += exceptions.length;
       }
 
@@ -343,4 +418,3 @@ export class PayrollService {
     };
   }
 }
-

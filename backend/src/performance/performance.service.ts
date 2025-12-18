@@ -210,9 +210,7 @@ export class PerformanceService {
     if (!record) throw new NotFoundException('Appraisal not found');
 
     if (dto.status !== AppraisalRecordStatus.HR_PUBLISHED) {
-      throw new ForbiddenException(
-        'HR can ONLY set status = HR_PUBLISHED',
-      );
+      throw new ForbiddenException('HR can ONLY set status = HR_PUBLISHED');
     }
 
     record.status = AppraisalRecordStatus.HR_PUBLISHED;
@@ -224,143 +222,133 @@ export class PerformanceService {
 
   // List all appraisals in cycle
   async findCycleAppraisals(cycleId: string) {
-  return this.recordModel.find({ cycleId: cycleId }).lean();
-}
-
+    return this.recordModel.find({ cycleId: cycleId }).lean();
+  }
 
   // Employee: list my appraisals
   async findMyAppraisals(employeeId: string) {
-  return this.recordModel
-    .find({ employeeProfileId: employeeId }) // ✅ DON'T convert to ObjectId
-    .lean();
-}
-
+    return this.recordModel
+      .find({ employeeProfileId: employeeId }) // ✅ DON'T convert to ObjectId
+      .lean();
+  }
 
   // Employee: get one
   async findMyAppraisalById(employeeId: string, recordId: string) {
-  const record = await this.recordModel
-    .findOne({ _id: recordId, employeeProfileId: employeeId })
-    .lean();
+    const record = await this.recordModel
+      .findOne({ _id: recordId, employeeProfileId: employeeId })
+      .lean();
 
-  if (!record) throw new NotFoundException("Appraisal not found");
-  return record;
-}
-
-  // Employee acknowledges appraisal (NO enum value for acknowledge)
- async employeeAcknowledgeAppraisal(
-  appraisalId: string,
-  employeeId: string,
-  comment: string,
-) {
-  const record = await this.recordModel.findById(appraisalId); // ❌ no .lean()
-  if (!record) throw new NotFoundException('Appraisal not found');
-
-  if (record.employeeProfileId.toString() !== employeeId) {
-    throw new ForbiddenException('Not your appraisal record');
+    if (!record) throw new NotFoundException('Appraisal not found');
+    return record;
   }
 
-  record.employeeAcknowledgedAt = new Date();
-  record.employeeAcknowledgementComment = comment ?? null;
+  // Employee acknowledges appraisal (NO enum value for acknowledge)
+  async employeeAcknowledgeAppraisal(
+    appraisalId: string,
+    employeeId: string,
+    comment: string,
+  ) {
+    const record = await this.recordModel.findById(appraisalId); // ❌ no .lean()
+    if (!record) throw new NotFoundException('Appraisal not found');
 
-  await record.save();
+    if (record.employeeProfileId.toString() !== employeeId) {
+      throw new ForbiddenException('Not your appraisal record');
+    }
 
-  return { message: 'Acknowledgement updated ✅', id: record._id };
-}
+    record.employeeAcknowledgedAt = new Date();
+    record.employeeAcknowledgementComment = comment ?? null;
 
+    await record.save();
+
+    return { message: 'Acknowledgement updated ✅', id: record._id };
+  }
 
   // ======================================================
   // DISPUTES
   // ======================================================
 
- async createDispute(
-  appraisalId: string,
-  dto: CreateDisputeDto,
-  employeeId: string,
-) {
-  // 1) Get the appraisal record
-  const record = await this.recordModel.findById(appraisalId);
-  if (!record) throw new NotFoundException('Appraisal not found');
+  async createDispute(
+    appraisalId: string,
+    dto: CreateDisputeDto,
+    employeeId: string,
+  ) {
+    // 1) Get the appraisal record
+    const record = await this.recordModel.findById(appraisalId);
+    if (!record) throw new NotFoundException('Appraisal not found');
 
-  // 2) Make sure this employee owns this appraisal
-  if (record.employeeProfileId.toString() !== employeeId) {
-    throw new ForbiddenException('Not your appraisal record');
+    // 2) Make sure this employee owns this appraisal
+    if (record.employeeProfileId.toString() !== employeeId) {
+      throw new ForbiddenException('Not your appraisal record');
+    }
+
+    // 3) Insert into the DISPUTE collection (correct model!)
+    await this.disputeModel.collection.insertOne({
+      appraisalId: record._id,
+      assignmentId: record.assignmentId,
+      cycleId: record.cycleId,
+      raisedByEmployeeId: new Types.ObjectId(employeeId),
+      reason: dto.reason,
+      details: dto.details ?? null,
+      status: AppraisalDisputeStatus.OPEN, // ✅ use enum
+      submittedAt: new Date(),
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+
+    return { message: 'Dispute created ✅' };
   }
 
-  // 3) Insert into the DISPUTE collection (correct model!)
-  await this.disputeModel.collection.insertOne({
-    appraisalId: record._id,
-    assignmentId: record.assignmentId,
-    cycleId: record.cycleId,
-    raisedByEmployeeId: new Types.ObjectId(employeeId),
-    reason: dto.reason,
-    details: dto.details ?? null,
-    status: AppraisalDisputeStatus.OPEN,   // ✅ use enum
-    submittedAt: new Date(),
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  });
+  async canRaiseDispute(cycleId: string) {
+    const cycle = await this.cycleModel.findById(cycleId);
+    if (!cycle) throw new NotFoundException('Cycle not found');
 
-  return { message: 'Dispute created ✅' };
-}
-
-async canRaiseDispute(cycleId: string) {
-  const cycle = await this.cycleModel.findById(cycleId);
-  if (!cycle) throw new NotFoundException("Cycle not found");
-
-  const now = new Date();
-  if (cycle.endDate && now > cycle.endDate) {
-    return false;
+    const now = new Date();
+    if (cycle.endDate && now > cycle.endDate) {
+      return false;
+    }
+    return true;
   }
-  return true;
-}
 
   async listDisputes(status?: string) {
     const filter: any = {};
     if (status) filter.status = status;
     return this.disputeModel.find(filter).lean();
   }
- async publishCycleResults(id: string) {
-  const cycle = await this.cycleModel.findById(id);
-  if (!cycle) throw new NotFoundException('Cycle not found');
+  async publishCycleResults(id: string) {
+    const cycle = await this.cycleModel.findById(id);
+    if (!cycle) throw new NotFoundException('Cycle not found');
 
-  cycle.status = AppraisalCycleStatus.CLOSED; // or keep same, depends on flow
-  cycle.publishedAt = new Date();
-  return cycle.save();
-}
-async deleteDispute(id: string) {
-  const deleted = await this.disputeModel.findByIdAndDelete(id);
-  if (!deleted) throw new NotFoundException('Dispute not found');
-  return { message: "Dispute deleted ✅", id };
-}
-
-  async resolveDispute(
-  id: string,
-  dto: ResolveDisputeDto,
-  hrId: string,
-) {
-  const dispute = await this.disputeModel.findById(id);
-  if (!dispute) throw new NotFoundException('Dispute not found');
-
-  // ✅ The only allowed final status is OPEN or ADJUSTED (your existing enum)
-  if (dto.newStatus !== AppraisalDisputeStatus.ADJUSTED)
- {
-    throw new ForbiddenException(
-      'Since the enum cannot be changed, HR can only resolve by setting status = ADJUSTED',
-    );
+    cycle.status = AppraisalCycleStatus.CLOSED; // or keep same, depends on flow
+    cycle.publishedAt = new Date();
+    return cycle.save();
+  }
+  async deleteDispute(id: string) {
+    const deleted = await this.disputeModel.findByIdAndDelete(id);
+    if (!deleted) throw new NotFoundException('Dispute not found');
+    return { message: 'Dispute deleted ✅', id };
   }
 
-  dispute.status = AppraisalDisputeStatus.ADJUSTED;
-  dispute.resolutionSummary = dto.resolutionSummary;
-  dispute.resolvedAt = new Date();
-  dispute.resolvedByEmployeeId = new Types.ObjectId(hrId);
+  async resolveDispute(id: string, dto: ResolveDisputeDto, hrId: string) {
+    const dispute = await this.disputeModel.findById(id);
+    if (!dispute) throw new NotFoundException('Dispute not found');
 
-  return dispute.save();
-}
-async getDisputeById(id: string) {
-  const dispute = await this.disputeModel.findById(id);
-  if (!dispute) throw new NotFoundException('Dispute not found');
-  return dispute;
-}
+    // ✅ The only allowed final status is OPEN or ADJUSTED (your existing enum)
+    if (dto.newStatus !== AppraisalDisputeStatus.ADJUSTED) {
+      throw new ForbiddenException(
+        'Since the enum cannot be changed, HR can only resolve by setting status = ADJUSTED',
+      );
+    }
 
+    dispute.status = AppraisalDisputeStatus.ADJUSTED;
+    dispute.resolutionSummary = dto.resolutionSummary;
+    dispute.resolvedAt = new Date();
+    dispute.resolvedByEmployeeId = new Types.ObjectId(hrId);
 
+    return dispute.save();
+  }
+  async getDisputeById(id: string) {
+    const dispute = await this.disputeModel.findById(id);
+    if (!dispute) throw new NotFoundException('Dispute not found');
+    return dispute;
+  }
 }

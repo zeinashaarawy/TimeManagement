@@ -21,4 +21,3 @@ export interface IOnboardingService {
     },
   ): Promise<{ onboardingId: string; tasks: any[] }>;
 }
-

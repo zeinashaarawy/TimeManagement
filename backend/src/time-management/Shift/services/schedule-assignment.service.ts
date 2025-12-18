@@ -125,50 +125,111 @@ export class ScheduleAssignmentService {
   async assign(
     createDto: CreateScheduleAssignmentDto,
   ): Promise<ScheduleAssignmentDocument> {
-    // Validate assignment
-    this.validateAssignment(createDto);
+    try {
+      // Validate assignment
+      this.validateAssignment(createDto);
 
-    // Verify shift template exists
-    await this.shiftTemplateService.findById(createDto.shiftTemplateId);
+      // Verify shift template exists
+      await this.shiftTemplateService.findById(createDto.shiftTemplateId);
 
-    // Check for conflicts (convert string dates to Date objects)
-    const conflicts = await this.detectConflicts(
-      createDto.employeeId,
-      createDto.departmentId,
-      createDto.positionId,
-      new Date(createDto.effectiveFrom),
-      createDto.effectiveTo ? new Date(createDto.effectiveTo) : null,
-    );
+      // Check for conflicts (convert string dates to Date objects)
+      const conflicts = await this.detectConflicts(
+        createDto.employeeId,
+        createDto.departmentId,
+        createDto.positionId,
+        new Date(createDto.effectiveFrom),
+        createDto.effectiveTo ? new Date(createDto.effectiveTo) : null,
+      );
 
-    if (conflicts.length > 0) {
-      throw new ConflictException(
-        `Assignment conflicts with ${conflicts.length} existing active assignment(s). Resolve conflicts before creating new assignment.`,
+      if (conflicts.length > 0) {
+        throw new ConflictException(
+          `Assignment conflicts with ${conflicts.length} existing active assignment(s). Resolve conflicts before creating new assignment.`,
+        );
+      }
+
+      // Validate ObjectIds before creating
+      const validateObjectId = (id: string, fieldName: string) => {
+        if (!id || typeof id !== 'string') {
+          throw new BadRequestException(
+            `Invalid ${fieldName}: value is required and must be a string`,
+          );
+        }
+        const trimmedId = id.trim();
+        if (trimmedId.length !== 24) {
+          throw new BadRequestException(
+            `Invalid ${fieldName}: "${trimmedId}" has ${trimmedId.length} characters. MongoDB ObjectId must be exactly 24 hexadecimal characters. Example: "507f1f77bcf86cd799439011"`,
+          );
+        }
+        if (!/^[0-9a-fA-F]{24}$/.test(trimmedId)) {
+          throw new BadRequestException(
+            `Invalid ${fieldName}: "${trimmedId}" contains invalid characters. MongoDB ObjectId must contain only hexadecimal characters (0-9, a-f, A-F). Example: "507f1f77bcf86cd799439011"`,
+          );
+        }
+        if (!Types.ObjectId.isValid(trimmedId)) {
+          throw new BadRequestException(
+            `Invalid ${fieldName}: "${trimmedId}" is not a valid MongoDB ObjectId. Please check the ID and try again.`,
+          );
+        }
+        return new Types.ObjectId(trimmedId);
+      };
+
+      // Create assignment with validated ObjectIds
+      const assignment = new this.scheduleAssignmentModel({
+        shiftTemplateId: validateObjectId(
+          createDto.shiftTemplateId,
+          'shiftTemplateId',
+        ),
+        employeeId: createDto.employeeId
+          ? validateObjectId(createDto.employeeId, 'employeeId')
+          : undefined,
+        departmentId: createDto.departmentId
+          ? validateObjectId(createDto.departmentId, 'departmentId')
+          : undefined,
+        positionId: createDto.positionId
+          ? validateObjectId(createDto.positionId, 'positionId')
+          : undefined,
+        effectiveFrom: new Date(createDto.effectiveFrom),
+        effectiveTo: createDto.effectiveTo
+          ? new Date(createDto.effectiveTo)
+          : null,
+        assignedBy: createDto.assignedBy
+          ? validateObjectId(createDto.assignedBy, 'assignedBy')
+          : undefined,
+        source: createDto.source || 'manual',
+        metadata: createDto.metadata || {},
+        status: 'Active',
+      });
+
+      return await assignment.save();
+    } catch (error) {
+      console.error('Error in assign method:', error);
+      console.error('Error details:', {
+        message: error?.message,
+        stack: error?.stack,
+        name: error?.name,
+        createDto: {
+          shiftTemplateId: createDto.shiftTemplateId,
+          employeeId: createDto.employeeId,
+          departmentId: createDto.departmentId,
+          positionId: createDto.positionId,
+          assignedBy: createDto.assignedBy,
+          effectiveFrom: createDto.effectiveFrom,
+          effectiveTo: createDto.effectiveTo,
+        },
+      });
+      // Re-throw known exceptions (BadRequest, Conflict, etc.)
+      if (
+        error instanceof BadRequestException ||
+        error instanceof ConflictException ||
+        error instanceof NotFoundException
+      ) {
+        throw error;
+      }
+      // For unknown errors, wrap in a more descriptive error
+      throw new BadRequestException(
+        `Failed to create shift assignment: ${error?.message || 'Unknown error'}`,
       );
     }
-
-    // Create assignment
-    const assignment = new this.scheduleAssignmentModel({
-      shiftTemplateId: new Types.ObjectId(createDto.shiftTemplateId),
-      employeeId: createDto.employeeId
-        ? new Types.ObjectId(createDto.employeeId)
-        : undefined,
-      departmentId: createDto.departmentId
-        ? new Types.ObjectId(createDto.departmentId)
-        : undefined,
-      positionId: createDto.positionId
-        ? new Types.ObjectId(createDto.positionId)
-        : undefined,
-      effectiveFrom: new Date(createDto.effectiveFrom),
-      effectiveTo: createDto.effectiveTo
-        ? new Date(createDto.effectiveTo)
-        : null,
-      assignedBy: new Types.ObjectId(createDto.assignedBy),
-      source: createDto.source || 'manual',
-      metadata: createDto.metadata || {},
-      status: 'Active',
-    });
-
-    return assignment.save();
   }
 
   /**
@@ -419,5 +480,56 @@ export class ScheduleAssignmentService {
       throw new NotFoundException(`Assignment with ID ${id} not found`);
     }
     return assignment;
+  }
+
+  /**
+   * Renew/Extend an assignment by updating its effectiveTo date
+   */
+  async renewAssignment(
+    id: string,
+    effectiveTo: Date,
+    reason?: string,
+  ): Promise<ScheduleAssignmentDocument> {
+    if (!Types.ObjectId.isValid(id)) {
+      throw new BadRequestException('Invalid assignment ID');
+    }
+
+    const assignment = await this.scheduleAssignmentModel.findById(id).exec();
+    if (!assignment) {
+      throw new NotFoundException(`Assignment with ID ${id} not found`);
+    }
+
+    // Validate new effectiveTo is after current effectiveFrom
+    if (new Date(effectiveTo) <= new Date(assignment.effectiveFrom)) {
+      throw new BadRequestException(
+        'New effectiveTo date must be after effectiveFrom date',
+      );
+    }
+
+    // Update effectiveTo and add renewal reason to metadata
+    const updateData: any = { effectiveTo: new Date(effectiveTo) };
+    if (reason) {
+      updateData.metadata = {
+        ...assignment.metadata,
+        renewalReason: reason,
+        renewedAt: new Date(),
+      };
+    }
+
+    const updatedAssignment = await this.scheduleAssignmentModel
+      .findByIdAndUpdate(
+        id,
+        { $set: updateData },
+        { new: true, runValidators: true },
+      )
+      .exec();
+
+    if (!updatedAssignment) {
+      throw new NotFoundException(
+        `Assignment with ID ${id} not found after update`,
+      );
+    }
+
+    return updatedAssignment;
   }
 }

@@ -1,4 +1,10 @@
-import { IsMongoId, IsOptional, IsEnum, IsBoolean, IsString } from 'class-validator';
+import {
+  IsMongoId,
+  IsOptional,
+  IsEnum,
+  IsBoolean,
+  IsString,
+} from 'class-validator';
 import { ApplicationStage } from '../enums/application-stage.enum';
 import { ApplicationStatus } from '../enums/application-status.enum';
 
@@ -39,4 +45,3 @@ export class CreateApplicationDto {
   @IsOptional()
   referredBy?: string;
 }
-

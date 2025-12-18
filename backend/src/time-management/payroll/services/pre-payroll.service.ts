@@ -1,18 +1,32 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
-import { PenaltyRecord, PenaltyRecordDocument, PenaltyStatus } from '../../policy/schemas/penalty-record.schema';
-import { OvertimeRecord, OvertimeRecordDocument, OvertimeStatus } from '../../policy/schemas/overtime-record.schema';
-import { TimeException, TimeExceptionDocument } from '../../attendance/schemas/time-exception.schema';
+import {
+  PenaltyRecord,
+  PenaltyRecordDocument,
+  PenaltyStatus,
+} from '../../policy/schemas/penalty-record.schema';
+import {
+  OvertimeRecord,
+  OvertimeRecordDocument,
+  OvertimeStatus,
+} from '../../policy/schemas/overtime-record.schema';
+import {
+  TimeException,
+  TimeExceptionDocument,
+} from '../../attendance/schemas/time-exception.schema';
 import { TimeExceptionStatus } from '../../enums/index';
 import { PayrollService } from './payroll.service';
 
 @Injectable()
 export class PrePayrollService {
   constructor(
-    @InjectModel(PenaltyRecord.name) private penaltyModel: Model<PenaltyRecordDocument>,
-    @InjectModel(OvertimeRecord.name) private overtimeModel: Model<OvertimeRecordDocument>,
-    @InjectModel(TimeException.name) private exceptionModel: Model<TimeExceptionDocument>,
+    @InjectModel(PenaltyRecord.name)
+    private penaltyModel: Model<PenaltyRecordDocument>,
+    @InjectModel(OvertimeRecord.name)
+    private overtimeModel: Model<OvertimeRecordDocument>,
+    @InjectModel(TimeException.name)
+    private exceptionModel: Model<TimeExceptionDocument>,
     private payrollService: PayrollService,
   ) {}
 
@@ -30,7 +44,10 @@ export class PrePayrollService {
     escalations: any[];
   }> {
     // Validate pre-payroll requirements
-    const validationResult = await this.payrollService.validatePrePayroll(periodStart, periodEnd);
+    const validationResult = await this.payrollService.validatePrePayroll(
+      periodStart,
+      periodEnd,
+    );
 
     // Generate pre-sync validation report
     const report = await this.generatePreSyncReport(periodStart, periodEnd);
@@ -53,20 +70,31 @@ export class PrePayrollService {
    * Generate pre-sync validation report
    */
   private async generatePreSyncReport(periodStart: Date, periodEnd: Date) {
-    const pendingOvertime = await this.overtimeModel.find({
-      recordDate: { $gte: periodStart, $lte: periodEnd },
-      status: OvertimeStatus.PENDING,
-    }).populate('employeeId', 'name email').exec();
+    const pendingOvertime = await this.overtimeModel
+      .find({
+        recordDate: { $gte: periodStart, $lte: periodEnd },
+        status: OvertimeStatus.PENDING,
+      })
+      .populate('employeeId', 'name email')
+      .exec();
 
-    const pendingPenalties = await this.penaltyModel.find({
-      recordDate: { $gte: periodStart, $lte: periodEnd },
-      status: PenaltyStatus.PENDING,
-    }).populate('employeeId', 'name email').exec();
+    const pendingPenalties = await this.penaltyModel
+      .find({
+        recordDate: { $gte: periodStart, $lte: periodEnd },
+        status: PenaltyStatus.PENDING,
+      })
+      .populate('employeeId', 'name email')
+      .exec();
 
-    const pendingExceptions = await this.exceptionModel.find({
-      createdAt: { $gte: periodStart, $lte: periodEnd },
-      status: { $in: [TimeExceptionStatus.OPEN, TimeExceptionStatus.PENDING] },
-    }).populate('employeeId', 'name email').exec();
+    const pendingExceptions = await this.exceptionModel
+      .find({
+        createdAt: { $gte: periodStart, $lte: periodEnd },
+        status: {
+          $in: [TimeExceptionStatus.OPEN, TimeExceptionStatus.PENDING],
+        },
+      })
+      .populate('employeeId', 'name email')
+      .exec();
 
     return {
       periodStart,
@@ -74,7 +102,7 @@ export class PrePayrollService {
       generatedAt: new Date(),
       pendingOvertime: {
         count: pendingOvertime.length,
-        records: pendingOvertime.map(ot => ({
+        records: pendingOvertime.map((ot) => ({
           id: ot._id,
           employee: (ot.employeeId as any)?.name || 'Unknown',
           minutes: ot.overtimeMinutes,
@@ -83,7 +111,7 @@ export class PrePayrollService {
       },
       pendingPenalties: {
         count: pendingPenalties.length,
-        records: pendingPenalties.map(p => ({
+        records: pendingPenalties.map((p) => ({
           id: p._id,
           employee: (p.employeeId as any)?.name || 'Unknown',
           type: p.type,
@@ -92,7 +120,7 @@ export class PrePayrollService {
       },
       pendingExceptions: {
         count: pendingExceptions.length,
-        records: pendingExceptions.map(e => ({
+        records: pendingExceptions.map((e) => ({
           id: e._id,
           employee: (e.employeeId as any)?.name || 'Unknown',
           type: e.type,
@@ -109,17 +137,31 @@ export class PrePayrollService {
     periodStart: Date,
     periodEnd: Date,
     deadlineHours: number,
-  ): Promise<Array<{ type: string; recordId: string; escalated: boolean; reason: string }>> {
-    const escalations: Array<{ type: string; recordId: string; escalated: boolean; reason: string }> = [];
+  ): Promise<
+    Array<{
+      type: string;
+      recordId: string;
+      escalated: boolean;
+      reason: string;
+    }>
+  > {
+    const escalations: Array<{
+      type: string;
+      recordId: string;
+      escalated: boolean;
+      reason: string;
+    }> = [];
     const deadline = new Date();
     deadline.setHours(deadline.getHours() - deadlineHours);
 
     // Check overtime records
-    const oldPendingOvertime = await this.overtimeModel.find({
-      recordDate: { $gte: periodStart, $lte: periodEnd },
-      status: OvertimeStatus.PENDING,
-      createdAt: { $lt: deadline },
-    }).exec();
+    const oldPendingOvertime = await this.overtimeModel
+      .find({
+        recordDate: { $gte: periodStart, $lte: periodEnd },
+        status: OvertimeStatus.PENDING,
+        createdAt: { $lt: deadline },
+      })
+      .exec();
 
     for (const ot of oldPendingOvertime) {
       // TODO: Implement actual escalation logic (notify manager, update status, etc.)
@@ -132,11 +174,13 @@ export class PrePayrollService {
     }
 
     // Check penalty records
-    const oldPendingPenalties = await this.penaltyModel.find({
-      recordDate: { $gte: periodStart, $lte: periodEnd },
-      status: PenaltyStatus.PENDING,
-      createdAt: { $lt: deadline },
-    }).exec();
+    const oldPendingPenalties = await this.penaltyModel
+      .find({
+        recordDate: { $gte: periodStart, $lte: periodEnd },
+        status: PenaltyStatus.PENDING,
+        createdAt: { $lt: deadline },
+      })
+      .exec();
 
     for (const penalty of oldPendingPenalties) {
       escalations.push({
@@ -148,14 +192,18 @@ export class PrePayrollService {
     }
 
     // Check exceptions
-    const oldPendingExceptions = await this.exceptionModel.find({
-      createdAt: { 
-        $gte: periodStart, 
-        $lte: periodEnd,
-        $lt: deadline 
-      },
-      status: { $in: [TimeExceptionStatus.OPEN, TimeExceptionStatus.PENDING] },
-    }).exec();
+    const oldPendingExceptions = await this.exceptionModel
+      .find({
+        createdAt: {
+          $gte: periodStart,
+          $lte: periodEnd,
+          $lt: deadline,
+        },
+        status: {
+          $in: [TimeExceptionStatus.OPEN, TimeExceptionStatus.PENDING],
+        },
+      })
+      .exec();
 
     for (const exception of oldPendingExceptions) {
       escalations.push({
@@ -169,4 +217,3 @@ export class PrePayrollService {
     return escalations;
   }
 }
-

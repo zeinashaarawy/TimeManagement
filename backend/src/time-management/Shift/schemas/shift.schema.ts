@@ -3,7 +3,7 @@ import { Document } from 'mongoose';
 
 export type ShiftTemplateDocument = ShiftTemplate & Document;
 
-@Schema({ timestamps: true })
+@Schema({ timestamps: true, collection: 'shifttemplates' })
 export class ShiftTemplate {
   @Prop({ required: true })
   name: string; // Normal, Split, Overnight, etc.

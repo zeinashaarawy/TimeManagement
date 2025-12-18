@@ -21,4 +21,3 @@ export class AnalyticsQueryDto {
   @IsOptional()
   status?: ApplicationStatus;
 }
-

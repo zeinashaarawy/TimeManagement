@@ -1,4 +1,11 @@
-import { IsString, IsBoolean, IsOptional, IsNumber, MaxLength, Min } from 'class-validator';
+import {
+  IsString,
+  IsBoolean,
+  IsOptional,
+  IsNumber,
+  MaxLength,
+  Min,
+} from 'class-validator';
 
 export class CreateLeaveTypeDto {
   @IsString()

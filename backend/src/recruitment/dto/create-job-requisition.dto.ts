@@ -1,4 +1,13 @@
-import { IsString, IsNumber, IsOptional, IsMongoId, IsDate, IsEnum, IsNotEmpty, Min } from 'class-validator';
+import {
+  IsString,
+  IsNumber,
+  IsOptional,
+  IsMongoId,
+  IsDate,
+  IsEnum,
+  IsNotEmpty,
+  Min,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class CreateJobRequisitionDto {
@@ -36,4 +45,3 @@ export class CreateJobRequisitionDto {
   @IsOptional()
   expiryDate?: Date;
 }
-

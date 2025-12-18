@@ -218,7 +218,9 @@ export class PayrollConfigurationController {
 
   // Termination and Resignation Benefits Configuration Endpoints
   @Post('termination-resignation-benefits')
-  createTerminationResignationBenefits(@Body() payload: CreateConfigurationDto) {
+  createTerminationResignationBenefits(
+    @Body() payload: CreateConfigurationDto,
+  ) {
     return this.payrollConfigurationService.createTerminationResignationBenefits(
       payload,
     );
@@ -307,9 +309,7 @@ export class PayrollConfigurationController {
     return this.payrollConfigurationService.updateTaxRule(configId, payload);
   }
 
-  private normalizeStatusFilter(
-    rawStatus?: string,
-  ): ConfigStatus | undefined {
+  private normalizeStatusFilter(rawStatus?: string): ConfigStatus | undefined {
     if (!rawStatus) {
       return undefined;
     }

@@ -63,7 +63,11 @@ describe('LeavesController', () => {
   });
 
   it('should call leaveType.create on createLeaveType', async () => {
-    const dto = { code: 'ANL', name: 'Annual Leave' };
+    const dto = {
+      code: 'ANL',
+      name: 'Annual Leave',
+      categoryId: 'category-123',
+    };
     mockLeavesService.leaveType.create.mockResolvedValue(dto);
 
     const result = await controller.createLeaveType(dto);

@@ -8,5 +8,5 @@ export class RegisterDto {
   lastName: string;
   nationalId: string;
   dateOfHire: string;
-  address: { city: string; street: string } // ✅ must be object not string
+  address: { city: string; street: string }; // ✅ must be object not string
 }

@@ -15,4 +15,3 @@ export class ApproveOfferDto {
   @IsOptional()
   comment?: string;
 }
-

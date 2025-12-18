@@ -1,4 +1,11 @@
-import { IsString, IsDate, IsOptional, IsIn, isEnum, IsEnum } from 'class-validator'
+import {
+  IsString,
+  IsDate,
+  IsOptional,
+  IsIn,
+  isEnum,
+  IsEnum,
+} from 'class-validator';
 import { PunchType } from '../../enums';
 
 export class CreatePunchDto {

@@ -1,23 +1,45 @@
-import { Controller, Get, Post, Param, Query, Body, BadRequestException, Injectable } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Param,
+  Query,
+  Body,
+  BadRequestException,
+  Injectable,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types, FilterQuery } from 'mongoose';
-import { AttendanceRecord, AttendanceRecordDocument } from '../schemas/attendance-record.schema';
-import { TimeException, TimeExceptionDocument } from '../schemas/time-exception.schema';
-import { PunchType, TimeExceptionType, TimeExceptionStatus } from '../../enums/index';
+import {
+  AttendanceRecord,
+  AttendanceRecordDocument,
+} from '../schemas/attendance-record.schema';
+import {
+  TimeException,
+  TimeExceptionDocument,
+} from '../schemas/time-exception.schema';
+import {
+  PunchType,
+  TimeExceptionType,
+  TimeExceptionStatus,
+} from '../../enums/index';
 import { CreatePunchDto } from '../dto/create-punch.dto';
 
 @Injectable()
 export class AttendanceService {
   constructor(
-    @InjectModel(AttendanceRecord.name) private recordModel: Model<AttendanceRecordDocument>,
-    @InjectModel(TimeException.name) private exceptionModel: Model<TimeExceptionDocument>,
+    @InjectModel(AttendanceRecord.name)
+    private recordModel: Model<AttendanceRecordDocument>,
+    @InjectModel(TimeException.name)
+    private exceptionModel: Model<TimeExceptionDocument>,
   ) {}
 
   /** Create a punch (IN/OUT) for an employee */
   async createPunch(dto: CreatePunchDto) {
     // Ensure timestamp is a Date object
-    const punchTime = dto.timestamp instanceof Date ? dto.timestamp : new Date(dto.timestamp);
-    
+    const punchTime =
+      dto.timestamp instanceof Date ? dto.timestamp : new Date(dto.timestamp);
+
     // Normalize date to start of day
     const dateOnly = new Date(punchTime);
     dateOnly.setHours(0, 0, 0, 0);
@@ -47,15 +69,18 @@ export class AttendanceService {
     } else if (dto.type === PunchType.OUT) {
       // Find last IN punch before this OUT
       const lastInPunch = record.punches
-        .filter(p => p.type === PunchType.IN)
+        .filter((p) => p.type === PunchType.IN)
         .slice(-1)[0];
 
       const lastOutPunch = record.punches
-        .filter(p => p.type === PunchType.OUT)
+        .filter((p) => p.type === PunchType.OUT)
         .slice(-1)[0];
 
       // Check if there's a valid IN punch before this OUT
-      if (lastInPunch && (!lastOutPunch || lastOutPunch.time < lastInPunch.time)) {
+      if (
+        lastInPunch &&
+        (!lastOutPunch || lastOutPunch.time < lastInPunch.time)
+      ) {
         // Valid OUT punch - has matching IN punch
         record.punches.push({ type: PunchType.OUT, time: punchTime });
       } else {
@@ -79,10 +104,10 @@ export class AttendanceService {
 
     // Calculate totalWorkMinutes from punches
     record.totalWorkMinutes = this.calculateWorkedMinutes(record.punches);
-    
+
     // Check for missed punches (should have at least one IN and one OUT)
-    const hasInPunch = record.punches.some(p => p.type === PunchType.IN);
-    const hasOutPunch = record.punches.some(p => p.type === PunchType.OUT);
+    const hasInPunch = record.punches.some((p) => p.type === PunchType.IN);
+    const hasOutPunch = record.punches.some((p) => p.type === PunchType.OUT);
     record.hasMissedPunch = !hasInPunch || !hasOutPunch;
 
     // Save the attendance record
@@ -92,9 +117,12 @@ export class AttendanceService {
   }
 
   /** Get attendance record for a specific employee and date */
-   async getAttendance(employeeId: string, date?: Date): Promise<AttendanceRecordDocument | null> {
-    const query: FilterQuery<AttendanceRecordDocument> = { 
-      employeeId: new Types.ObjectId(employeeId) 
+  async getAttendance(
+    employeeId: string,
+    date?: Date,
+  ): Promise<AttendanceRecordDocument | null> {
+    const query: FilterQuery<AttendanceRecordDocument> = {
+      employeeId: new Types.ObjectId(employeeId),
     };
 
     if (date) {
@@ -104,25 +132,27 @@ export class AttendanceService {
     }
 
     const record = await this.recordModel.findOne(query).exec();
-    
+
     // Recalculate if totalWorkMinutes is 0 but we have punches (for old data)
     if (record && record.totalWorkMinutes === 0 && record.punches.length >= 2) {
       // Ensure punch times are Date objects
-      const punchesWithDates = record.punches.map(p => ({
+      const punchesWithDates = record.punches.map((p) => ({
         type: p.type,
         time: p.time instanceof Date ? p.time : new Date(p.time),
       }));
       record.totalWorkMinutes = this.calculateWorkedMinutes(punchesWithDates);
-      
+
       // Update missed punch flag
-      const hasInPunch = punchesWithDates.some(p => p.type === PunchType.IN);
-      const hasOutPunch = punchesWithDates.some(p => p.type === PunchType.OUT);
+      const hasInPunch = punchesWithDates.some((p) => p.type === PunchType.IN);
+      const hasOutPunch = punchesWithDates.some(
+        (p) => p.type === PunchType.OUT,
+      );
       record.hasMissedPunch = !hasInPunch || !hasOutPunch;
-      
+
       // Save the recalculated values
       await record.save();
     }
-    
+
     return record;
   }
 
@@ -130,11 +160,15 @@ export class AttendanceService {
    * Calculate worked minutes from punches
    * Matches IN/OUT pairs and sums the time differences
    */
-  private calculateWorkedMinutes(punches: Array<{ type: string; time: Date }>): number {
+  private calculateWorkedMinutes(
+    punches: Array<{ type: string; time: Date }>,
+  ): number {
     if (punches.length === 0) return 0;
 
     // Sort punches by time
-    const sortedPunches = [...punches].sort((a, b) => a.time.getTime() - b.time.getTime());
+    const sortedPunches = [...punches].sort(
+      (a, b) => a.time.getTime() - b.time.getTime(),
+    );
     let totalMinutes = 0;
     let lastInTime: Date | null = null;
 
@@ -143,7 +177,10 @@ export class AttendanceService {
       const punchType = punch.type.toString().toUpperCase();
       if (punchType === 'IN' || punchType === PunchType.IN) {
         lastInTime = punch.time;
-      } else if ((punchType === 'OUT' || punchType === PunchType.OUT) && lastInTime) {
+      } else if (
+        (punchType === 'OUT' || punchType === PunchType.OUT) &&
+        lastInTime
+      ) {
         const diffMs = punch.time.getTime() - lastInTime.getTime();
         const minutes = Math.floor(diffMs / (1000 * 60));
         if (minutes > 0) {

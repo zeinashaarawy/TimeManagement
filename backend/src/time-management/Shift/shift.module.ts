@@ -16,6 +16,12 @@ import {
   ShiftExpiryNotification,
   ShiftExpiryNotificationSchema,
 } from './schemas/shift-expiry-notification.schema';
+import {
+  SchedulingRule,
+  SchedulingRuleSchema,
+} from './schemas/scheduling-rule.schema';
+import { SchedulingRuleService } from './services/scheduling-rule.service';
+import { SchedulingRuleController } from './controllers/scheduling-rule.controller';
 import { RolesGuard } from './guards/roles.guard';
 
 @Module({
@@ -27,6 +33,7 @@ import { RolesGuard } from './guards/roles.guard';
         name: ShiftExpiryNotification.name,
         schema: ShiftExpiryNotificationSchema,
       },
+      { name: SchedulingRule.name, schema: SchedulingRuleSchema },
       // Note: Employee schema should be imported from the main time-management module if needed
     ]),
   ],
@@ -34,12 +41,14 @@ import { RolesGuard } from './guards/roles.guard';
     ShiftTemplateController,
     ScheduleAssignmentController,
     ShiftExpiryNotificationController,
+    SchedulingRuleController,
   ],
   providers: [
     ShiftTemplateService,
     ScheduleAssignmentService,
     ShiftExpiryService,
     ShiftExpirySchedulerService,
+    SchedulingRuleService,
     RolesGuard,
   ],
   exports: [

@@ -1,6 +1,6 @@
-import { Schema, Prop, SchemaFactory } from "@nestjs/mongoose";
-import { Types } from "mongoose";
-import { HydratedDocument } from "mongoose";
+import { Schema, Prop, SchemaFactory } from '@nestjs/mongoose';
+import { Types } from 'mongoose';
+import { HydratedDocument } from 'mongoose';
 
 export enum OvertimeStatus {
   PENDING = 'PENDING',
@@ -13,7 +13,7 @@ export type OvertimeRecordDocument = HydratedDocument<OvertimeRecord>;
 
 @Schema({ timestamps: true })
 export class OvertimeRecord {
-  @Prop({ type: Types.ObjectId,  required: true })
+  @Prop({ type: Types.ObjectId, required: true })
   employeeId: Types.ObjectId;
 
   @Prop({ type: Types.ObjectId, ref: 'Attendance', required: true })
@@ -58,12 +58,12 @@ export class OvertimeRecord {
   @Prop({ type: Types.ObjectId, ref: 'TimeException', required: false })
   exceptionId?: Types.ObjectId; // Linked exception if applicable
 
-  @Prop({ type: Date, required: true , default: Date.now })
+  @Prop({ type: Date, required: true, default: Date.now })
   recordDate: Date; // Date of the attendance record
 
   @Prop({ default: false })
   isWeekend: boolean; // Whether this is weekend overtime
 }
 
-export const OvertimeRecordSchema = SchemaFactory.createForClass(OvertimeRecord);
-
+export const OvertimeRecordSchema =
+  SchemaFactory.createForClass(OvertimeRecord);

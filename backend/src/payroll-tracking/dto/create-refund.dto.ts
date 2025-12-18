@@ -1,4 +1,11 @@
-import { IsMongoId, IsNumber, IsOptional, IsString, Min, ValidateNested } from 'class-validator';
+import {
+  IsMongoId,
+  IsNumber,
+  IsOptional,
+  IsString,
+  Min,
+  ValidateNested,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 
 class RefundDetailsDto {
@@ -24,7 +31,7 @@ export class CreateRefundDto {
   employeeId: string;
 
   @IsOptional()
-  @IsMongoId()  
+  @IsMongoId()
   financeStaffId?: string;
 
   @ValidateNested()

@@ -65,7 +65,7 @@ export class PayrollConfigurationService {
     }
 
     // Check if configuration exists and is in DRAFT status
-    const existingDoc = await model.findById(configId).lean() as any;
+    const existingDoc = (await model.findById(configId).lean()) as any;
     if (!existingDoc) {
       throw new NotFoundException(
         `Configuration ${configId} not found in ${collection}`,
@@ -191,10 +191,7 @@ export class PayrollConfigurationService {
     return (await newInsuranceBracket.save()).toObject();
   }
 
-  async updateInsuranceBracket(
-    configId: string,
-    payload: Record<string, any>,
-  ) {
+  async updateInsuranceBracket(configId: string, payload: Record<string, any>) {
     if (!payload || Object.keys(payload).length === 0) {
       throw new BadRequestException('Update payload is required');
     }
@@ -266,17 +263,27 @@ export class PayrollConfigurationService {
 
   private ensureEditableInsuranceFields(payload: Record<string, any>) {
     const sanitizedPayload: Record<string, any> = { ...payload };
-    ['status', 'approvedBy', 'approvedAt', '_id', 'createdAt', 'updatedAt'].forEach(
-      (field) => delete sanitizedPayload[field],
-    );
+    [
+      'status',
+      'approvedBy',
+      'approvedAt',
+      '_id',
+      'createdAt',
+      'updatedAt',
+    ].forEach((field) => delete sanitizedPayload[field]);
     return sanitizedPayload;
   }
 
   private sanitizePayload(payload: Record<string, any>) {
     const sanitizedPayload: Record<string, any> = { ...payload };
-    ['status', 'approvedBy', 'approvedAt', '_id', 'createdAt', 'updatedAt'].forEach(
-      (field) => delete sanitizedPayload[field],
-    );
+    [
+      'status',
+      'approvedBy',
+      'approvedAt',
+      '_id',
+      'createdAt',
+      'updatedAt',
+    ].forEach((field) => delete sanitizedPayload[field]);
     return sanitizedPayload;
   }
 
@@ -300,16 +307,18 @@ export class PayrollConfigurationService {
       throw new BadRequestException('No editable fields provided');
     }
 
-    return this.editConfiguration('payrollPolicies', configId, sanitizedPayload);
+    return this.editConfiguration(
+      'payrollPolicies',
+      configId,
+      sanitizedPayload,
+    );
   }
 
   async getPayrollPolicy(configId: string) {
     const model = this.getModel('payrollPolicies');
     const doc = await model.findById(configId).lean();
     if (!doc) {
-      throw new NotFoundException(
-        `Payroll policy ${configId} not found`,
-      );
+      throw new NotFoundException(`Payroll policy ${configId} not found`);
     }
     return doc;
   }
@@ -350,9 +359,7 @@ export class PayrollConfigurationService {
     const model = this.getModel('payGrade');
     const doc = await model.findById(configId).lean();
     if (!doc) {
-      throw new NotFoundException(
-        `Pay grade ${configId} not found`,
-      );
+      throw new NotFoundException(`Pay grade ${configId} not found`);
     }
     return doc;
   }
@@ -393,9 +400,7 @@ export class PayrollConfigurationService {
     const model = this.getModel('payType');
     const doc = await model.findById(configId).lean();
     if (!doc) {
-      throw new NotFoundException(
-        `Pay type ${configId} not found`,
-      );
+      throw new NotFoundException(`Pay type ${configId} not found`);
     }
     return doc;
   }
@@ -436,9 +441,7 @@ export class PayrollConfigurationService {
     const model = this.getModel('allowance');
     const doc = await model.findById(configId).lean();
     if (!doc) {
-      throw new NotFoundException(
-        `Allowance ${configId} not found`,
-      );
+      throw new NotFoundException(`Allowance ${configId} not found`);
     }
     return doc;
   }
@@ -479,9 +482,7 @@ export class PayrollConfigurationService {
     const model = this.getModel('signingBonus');
     const doc = await model.findById(configId).lean();
     if (!doc) {
-      throw new NotFoundException(
-        `Signing bonus ${configId} not found`,
-      );
+      throw new NotFoundException(`Signing bonus ${configId} not found`);
     }
     return doc;
   }
@@ -548,7 +549,7 @@ export class PayrollConfigurationService {
   // Company-Wide Settings Configuration
   async createCompanyWideSettings(payload: Record<string, any>) {
     const model = this.getModel('CompanyWideSettings');
-    
+
     // Validate required fields
     if (!payload.payDate) {
       throw new BadRequestException('payDate is required');
@@ -574,7 +575,10 @@ export class PayrollConfigurationService {
     return (await newSettings.save()).toObject();
   }
 
-  async updateCompanyWideSettings(configId: string, payload: Record<string, any>) {
+  async updateCompanyWideSettings(
+    configId: string,
+    payload: Record<string, any>,
+  ) {
     if (!payload || Object.keys(payload).length === 0) {
       throw new BadRequestException('Update payload is required');
     }
@@ -675,9 +679,7 @@ export class PayrollConfigurationService {
     }
 
     if (!this.isSupportedCollection(collection)) {
-      throw new BadRequestException(
-        `Unsupported collection "${collection}".`,
-      );
+      throw new BadRequestException(`Unsupported collection "${collection}".`);
     }
 
     const modelName = COLLECTION_MODEL_NAMES[collection];

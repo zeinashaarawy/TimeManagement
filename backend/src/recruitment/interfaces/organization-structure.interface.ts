@@ -14,6 +14,7 @@ export interface IOrganizationStructureService {
    * Get department details
    * @param departmentId - Department ID or name
    */
-  getDepartment(departmentId: string): Promise<{ id: string; name: string; managerId?: string } | null>;
+  getDepartment(
+    departmentId: string,
+  ): Promise<{ id: string; name: string; managerId?: string } | null>;
 }
-

@@ -1,4 +1,8 @@
-import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  BadRequestException,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import {
@@ -8,11 +12,20 @@ import {
 } from './attendance/schemas/attendance-record.schema';
 import { CreatePunchDto } from './attendance/dto/create-punch.dto';
 import { UpdatePunchDto } from './attendance/dto/update-punch.dto';
-import { TimeException, TimeExceptionDocument } from './attendance/schemas/time-exception.schema';
-import { TimeExceptionType, TimeExceptionStatus, PunchType } from './enums/index';
-import { NotificationLog, NotificationLogDocument } from './notifications/schemas/notification-log.schema';
+import {
+  TimeException,
+  TimeExceptionDocument,
+} from './attendance/schemas/time-exception.schema';
+import {
+  TimeExceptionType,
+  TimeExceptionStatus,
+  PunchType,
+} from './enums/index';
+import {
+  NotificationLog,
+  NotificationLogDocument,
+} from './notifications/schemas/notification-log.schema';
 import { PolicyEngineService } from './policy/services/policy-engine.service';
-
 
 @Injectable()
 export class TimeManagementService {
@@ -63,11 +76,13 @@ export class TimeManagementService {
     });
 
     // Calculate totalWorkMinutes from punches
-    attendance.totalWorkMinutes = this.calculateWorkedMinutes(attendance.punches);
-    
+    attendance.totalWorkMinutes = this.calculateWorkedMinutes(
+      attendance.punches,
+    );
+
     // Check for missed punches (should have at least one IN and one OUT)
-    const hasInPunch = attendance.punches.some(p => p.type === 'IN');
-    const hasOutPunch = attendance.punches.some(p => p.type === 'OUT');
+    const hasInPunch = attendance.punches.some((p) => p.type === 'IN');
+    const hasOutPunch = attendance.punches.some((p) => p.type === 'OUT');
     attendance.hasMissedPunch = !hasInPunch || !hasOutPunch;
 
     // Save updated record
@@ -77,54 +92,52 @@ export class TimeManagementService {
     const punchesToday = savedRecord.punches.length;
 
     if (punchesToday < 2) {
-  const existing = await this.exceptionModel.findOne({
-    employeeId: employeeObjectId,
-    type: 'MISSED_PUNCH',
-    'createdAt': { $gte: startOfDay, $lte: endOfDay }
-  });
+      const existing = await this.exceptionModel.findOne({
+        employeeId: employeeObjectId,
+        type: 'MISSED_PUNCH',
+        createdAt: { $gte: startOfDay, $lte: endOfDay },
+      });
 
-  if (!existing) {
-    // Note: assignedTo is required but we don't have manager ID here
-    // Using employee's own ID as fallback - should be updated by manager later
-    const exception = await this.exceptionModel.create({
-      employeeId: employeeObjectId,
-      attendanceRecordId: savedRecord._id,
-      type: 'MISSED_PUNCH',
-      status: 'OPEN',
-      assignedTo: employeeObjectId, // Required field - using employee ID as fallback
-      reason: `Employee has only ${punchesToday} punch(es) on ${startOfDay.toDateString()}`,
-    });
+      if (!existing) {
+        // Note: assignedTo is required but we don't have manager ID here
+        // Using employee's own ID as fallback - should be updated by manager later
+        const exception = await this.exceptionModel.create({
+          employeeId: employeeObjectId,
+          attendanceRecordId: savedRecord._id,
+          type: 'MISSED_PUNCH',
+          status: 'OPEN',
+          assignedTo: employeeObjectId, // Required field - using employee ID as fallback
+          reason: `Employee has only ${punchesToday} punch(es) on ${startOfDay.toDateString()}`,
+        });
 
-    // Send notification
-    await this.sendNotification(
-      dto.employeeId,
-      'MISSED_PUNCH',
-      `Missed punch detected: only ${punchesToday} punch(es) on ${startOfDay.toDateString()}`
-    );
-  }
-}
+        // Send notification
+        await this.sendNotification(
+          dto.employeeId,
+          'MISSED_PUNCH',
+          `Missed punch detected: only ${punchesToday} punch(es) on ${startOfDay.toDateString()}`,
+        );
+      }
+    }
 
     return {
       message: 'Punch recorded successfully',
       attendance: savedRecord,
     };
   }
-    async getNotifications(employeeId: string) {
-  return this.notificationModel.find({ to: new Types.ObjectId(employeeId) }).lean();
-}
+  async getNotifications(employeeId: string) {
+    return this.notificationModel
+      .find({ to: new Types.ObjectId(employeeId) })
+      .lean();
+  }
 
-    async sendNotification(
-      to: string, 
-      type: string, 
-      message?: string
-       ){
-        const notification = new this.notificationModel({
-        to: new Types.ObjectId(to),
-        type,
-        message,
-  });
-  return notification.save();
-}
+  async sendNotification(to: string, type: string, message?: string) {
+    const notification = new this.notificationModel({
+      to: new Types.ObjectId(to),
+      type,
+      message,
+    });
+    return notification.save();
+  }
 
   // ------------------- GET ATTENDANCE -------------------
   async getAttendance(employeeId: string, date?: string) {
@@ -140,8 +153,25 @@ export class TimeManagementService {
     }
 
     const record = await this.attendanceModel.findOne(query);
-    if (!record)
-      return { message: 'No attendance found', punches: [] };
+    if (!record) return { message: 'No attendance found', punches: [] };
+
+    // Recalculate if totalWorkMinutes is 0 but we have punches (for old data)
+    if (record.totalWorkMinutes === 0 && record.punches.length >= 2) {
+      // Ensure punch times are Date objects
+      const punchesWithDates = record.punches.map((p) => ({
+        type: p.type,
+        time: p.time instanceof Date ? p.time : new Date(p.time),
+      }));
+      record.totalWorkMinutes = this.calculateWorkedMinutes(punchesWithDates);
+
+      // Update missed punch flag
+      const hasInPunch = punchesWithDates.some((p) => p.type === 'IN');
+      const hasOutPunch = punchesWithDates.some((p) => p.type === 'OUT');
+      record.hasMissedPunch = !hasInPunch || !hasOutPunch;
+
+      // Save the recalculated values
+      await record.save();
+    }
 
     // Recalculate if totalWorkMinutes is 0 but we have punches (for old data)
     if (record.totalWorkMinutes === 0 && record.punches.length >= 2) {
@@ -194,9 +224,11 @@ export class TimeManagementService {
 
   // ------------------- GET TIME EXCEPTIONS -------------------
   async getExceptions(employeeId: string) {
-    return this.exceptionModel.find({
-      employeeId: new Types.ObjectId(employeeId),
-    }).exec();
+    return this.exceptionModel
+      .find({
+        employeeId: new Types.ObjectId(employeeId),
+      })
+      .exec();
   }
 
   // ------------------- CORRECT ATTENDANCE -------------------
@@ -236,11 +268,13 @@ export class TimeManagementService {
     }));
 
     // Calculate totalWorkMinutes from punches
-    attendance.totalWorkMinutes = this.calculateWorkedMinutes(attendance.punches);
-    
+    attendance.totalWorkMinutes = this.calculateWorkedMinutes(
+      attendance.punches,
+    );
+
     // Check for missed punches (should have at least one IN and one OUT)
-    const hasInPunch = attendance.punches.some(p => p.type === 'IN');
-    const hasOutPunch = attendance.punches.some(p => p.type === 'OUT');
+    const hasInPunch = attendance.punches.some((p) => p.type === 'IN');
+    const hasOutPunch = attendance.punches.some((p) => p.type === 'OUT');
     attendance.hasMissedPunch = !hasInPunch || !hasOutPunch;
 
     const saved = await attendance.save();
@@ -316,37 +350,48 @@ export class TimeManagementService {
     // Trigger policy recalculation if attendance record exists
     if (exception.attendanceRecordId) {
       try {
-        const attendance = await this.attendanceModel.findById(exception.attendanceRecordId);
+        const attendance = await this.attendanceModel.findById(
+          exception.attendanceRecordId,
+        );
         if (attendance) {
           // Use recordDate if available, otherwise use first punch time, otherwise use current date
-          const recordDate = attendance.recordDate || 
-                            (attendance.punches && attendance.punches.length > 0 ? attendance.punches[0].time : new Date());
-          
+          const recordDate =
+            attendance.recordDate ||
+            (attendance.punches && attendance.punches.length > 0
+              ? attendance.punches[0].time
+              : new Date());
+
           // Ensure attendanceRecordId is an ObjectId
-          const attendanceRecordId = exception.attendanceRecordId instanceof Types.ObjectId 
-            ? exception.attendanceRecordId 
-            : new Types.ObjectId(exception.attendanceRecordId);
-          
-          const result = await this.policyEngineService.recalculatePolicyResults(
-            attendanceRecordId,
-            recordDate instanceof Date ? recordDate : new Date(recordDate),
-            undefined,
-            undefined,
-            undefined,
-          );
+          const attendanceRecordId =
+            exception.attendanceRecordId instanceof Types.ObjectId
+              ? exception.attendanceRecordId
+              : new Types.ObjectId(exception.attendanceRecordId);
+
+          const result =
+            await this.policyEngineService.recalculatePolicyResults(
+              attendanceRecordId,
+              recordDate instanceof Date ? recordDate : new Date(recordDate),
+              undefined,
+              undefined,
+              undefined,
+            );
           await this.policyEngineService.saveComputedResults(result);
         }
       } catch (error) {
         // Log error but don't fail the approval
-        console.error('Error recalculating policy results after exception approval:', error);
+        console.error(
+          'Error recalculating policy results after exception approval:',
+          error,
+        );
       }
     }
 
     // Send notification (don't fail if notification fails)
     try {
-      const employeeIdStr = exception.employeeId instanceof Types.ObjectId 
-        ? exception.employeeId.toString() 
-        : String(exception.employeeId);
+      const employeeIdStr =
+        exception.employeeId instanceof Types.ObjectId
+          ? exception.employeeId.toString()
+          : String(exception.employeeId);
       await this.sendNotification(
         employeeIdStr,
         'EXCEPTION_APPROVED',
@@ -392,9 +437,10 @@ export class TimeManagementService {
 
     // Send notification
     try {
-      const employeeIdStr = exception.employeeId instanceof Types.ObjectId 
-        ? exception.employeeId.toString() 
-        : String(exception.employeeId);
+      const employeeIdStr =
+        exception.employeeId instanceof Types.ObjectId
+          ? exception.employeeId.toString()
+          : String(exception.employeeId);
       await this.sendNotification(
         employeeIdStr,
         'EXCEPTION_REJECTED',
@@ -445,7 +491,10 @@ export class TimeManagementService {
       throw new NotFoundException('Exception not found');
     }
 
-    if (exception.status === TimeExceptionStatus.APPROVED || exception.status === TimeExceptionStatus.REJECTED) {
+    if (
+      exception.status === TimeExceptionStatus.APPROVED ||
+      exception.status === TimeExceptionStatus.REJECTED
+    ) {
       throw new BadRequestException('Cannot escalate a resolved exception');
     }
 
@@ -458,9 +507,10 @@ export class TimeManagementService {
 
     // Send notification
     try {
-      const employeeIdStr = exception.employeeId instanceof Types.ObjectId 
-        ? exception.employeeId.toString() 
-        : String(exception.employeeId);
+      const employeeIdStr =
+        exception.employeeId instanceof Types.ObjectId
+          ? exception.employeeId.toString()
+          : String(exception.employeeId);
       await this.sendNotification(
         employeeIdStr,
         'EXCEPTION_ESCALATED',
@@ -480,11 +530,15 @@ export class TimeManagementService {
    * Calculate worked minutes from punches
    * Matches IN/OUT pairs and sums the time differences
    */
-  private calculateWorkedMinutes(punches: Array<{ type: string; time: Date }>): number {
+  private calculateWorkedMinutes(
+    punches: Array<{ type: string; time: Date }>,
+  ): number {
     if (punches.length === 0) return 0;
 
     // Sort punches by time
-    const sortedPunches = [...punches].sort((a, b) => a.time.getTime() - b.time.getTime());
+    const sortedPunches = [...punches].sort(
+      (a, b) => a.time.getTime() - b.time.getTime(),
+    );
     let totalMinutes = 0;
     let lastInTime: Date | null = null;
 

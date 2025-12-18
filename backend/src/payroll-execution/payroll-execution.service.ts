@@ -6,12 +6,7 @@ import {
   Optional,
 } from '@nestjs/common';
 import { InjectConnection, InjectModel } from '@nestjs/mongoose';
-import {
-  Connection,
-  FilterQuery,
-  Model,
-  Types,
-} from 'mongoose';
+import { Connection, FilterQuery, Model, Types } from 'mongoose';
 import {
   employeeSigningBonus,
   employeeSigningBonusDocument,
@@ -26,8 +21,15 @@ import {
 import { signingBonusDocument } from '../payroll-configuration/models/signingBonus.schema';
 import { terminationAndResignationBenefitsDocument } from '../payroll-configuration/models/terminationAndResignationBenefits';
 import { payrollRuns, payrollRunsDocument } from './models/payrollRuns.schema';
-import { employeePayrollDetails, employeePayrollDetailsDocument } from './models/employeePayrollDetails.schema';
-import { PayRollStatus, PayRollPaymentStatus, BankStatus } from './enums/payroll-execution-enum';
+import {
+  employeePayrollDetails,
+  employeePayrollDetailsDocument,
+} from './models/employeePayrollDetails.schema';
+import {
+  PayRollStatus,
+  PayRollPaymentStatus,
+  BankStatus,
+} from './enums/payroll-execution-enum';
 import { allowance } from '../payroll-configuration/models/allowance.schema';
 import { taxRules } from '../payroll-configuration/models/taxRules.schema';
 import { insuranceBrackets } from '../payroll-configuration/models/insuranceBrackets.schema';
@@ -148,7 +150,13 @@ export interface PayrollRunReviewItem {
 }
 
 export interface PayrollIrregularity {
-  type: 'salary_spike' | 'missing_bank' | 'negative_net_pay' | 'unusual_deduction' | 'zero_salary' | 'excessive_overtime';
+  type:
+    | 'salary_spike'
+    | 'missing_bank'
+    | 'negative_net_pay'
+    | 'unusual_deduction'
+    | 'zero_salary'
+    | 'excessive_overtime';
   severity: 'high' | 'medium' | 'low';
   employeeId: string;
   employeeName: string;
@@ -346,7 +354,9 @@ export class PayrollExecutionService {
 
     this.terminationBenefitModel =
       terminationBenefitModel ??
-      (this.createUnavailableModelProxy('EmployeeTerminationResignation') as Model<any>);
+      (this.createUnavailableModelProxy(
+        'EmployeeTerminationResignation',
+      ) as Model<any>);
 
     this.payrollRunModel =
       payrollRunModel ??
@@ -373,40 +383,37 @@ export class PayrollExecutionService {
       return;
     }
 
-    const existingModel = connection.models[
-      EmployeeProfile.name
-    ] as Model<EmployeeProfileDocument> | undefined;
+    const existingModel = connection.models[EmployeeProfile.name] as
+      | Model<EmployeeProfileDocument>
+      | undefined;
     this.employeeProfileModel =
       existingModel ??
       connection.model<EmployeeProfileDocument>(EmployeeProfile.name);
 
     this.terminationRequestModel =
-      (connection.models['TerminationRequest'] as Model<any>) ??
+      connection.models['TerminationRequest'] ??
       connection.model<any>('TerminationRequest');
 
     this.clearanceChecklistModel =
-      (connection.models['ClearanceChecklist'] as Model<any>) ??
+      connection.models['ClearanceChecklist'] ??
       connection.model<any>('ClearanceChecklist');
 
     this.contractModel =
-      (connection.models['Contract'] as Model<any>) ??
-      connection.model<any>('Contract');
+      connection.models['Contract'] ?? connection.model<any>('Contract');
 
     this.allowanceModel =
-      (connection.models[allowance.name] as Model<any>) ??
+      connection.models[allowance.name] ??
       connection.model<any>(allowance.name);
 
     this.taxRulesModel =
-      (connection.models[taxRules.name] as Model<any>) ??
-      connection.model<any>(taxRules.name);
+      connection.models[taxRules.name] ?? connection.model<any>(taxRules.name);
 
     this.insuranceBracketsModel =
-      (connection.models[insuranceBrackets.name] as Model<any>) ??
+      connection.models[insuranceBrackets.name] ??
       connection.model<any>(insuranceBrackets.name);
 
     this.payGradeModel =
-      (connection.models[payGrade.name] as Model<any>) ??
-      connection.model<any>(payGrade.name);
+      connection.models[payGrade.name] ?? connection.model<any>(payGrade.name);
   }
 
   async getProcessedSigningBonuses(
@@ -418,7 +425,9 @@ export class PayrollExecutionService {
 
     if (filter.status) {
       if (!Object.values(BonusStatus).includes(filter.status)) {
-        throw new BadRequestException('Unsupported signing bonus status filter');
+        throw new BadRequestException(
+          'Unsupported signing bonus status filter',
+        );
       }
       query.status = filter.status;
     } else {
@@ -521,9 +530,7 @@ export class PayrollExecutionService {
     const overridePaymentDate = this.normalizeDate(dto.paymentDate);
 
     if (!signingBonus.paymentDate && !overridePaymentDate) {
-      throw new BadRequestException(
-        'Signing bonus has not been processed yet',
-      );
+      throw new BadRequestException('Signing bonus has not been processed yet');
     }
 
     if (overridePaymentDate) {
@@ -629,9 +636,7 @@ export class PayrollExecutionService {
     return reviewItem;
   }
 
-  private isContractEligible(
-    employee?: EmployeeProfileWithContract,
-  ): boolean {
+  private isContractEligible(employee?: EmployeeProfileWithContract): boolean {
     return !!employee?.contractDetails?.signingBonusEligible;
   }
 
@@ -639,7 +644,9 @@ export class PayrollExecutionService {
     bonus: LeanEmployeeSigningBonus,
     employee: EmployeeProfileWithContract,
   ): SigningBonusReviewItem {
-    const { id, amount } = this.extractSigningBonusDetails(bonus.signingBonusId);
+    const { id, amount } = this.extractSigningBonusDetails(
+      bonus.signingBonusId,
+    );
     return {
       id: bonus._id?.toString() || '',
       employeeId: bonus.employeeId?.toString() || '',
@@ -712,9 +719,7 @@ export class PayrollExecutionService {
     return normalized;
   }
 
-  private normalizeObjectId(
-    id?: Types.ObjectId | string,
-  ): string | undefined {
+  private normalizeObjectId(id?: Types.ObjectId | string): string | undefined {
     if (!id) {
       return undefined;
     }
@@ -739,7 +744,9 @@ export class PayrollExecutionService {
 
     if (filter.status) {
       if (!Object.values(BenefitStatus).includes(filter.status)) {
-        throw new BadRequestException('Unsupported termination benefit status filter');
+        throw new BadRequestException(
+          'Unsupported termination benefit status filter',
+        );
       }
       query.status = filter.status;
     } else {
@@ -926,7 +933,8 @@ export class PayrollExecutionService {
     terminationBenefit.status = BenefitStatus.APPROVED;
     await terminationBenefit.save();
 
-    const leanBenefit = terminationBenefit.toObject() as LeanEmployeeTerminationResignation;
+    const leanBenefit =
+      terminationBenefit.toObject() as LeanEmployeeTerminationResignation;
     const reviewItem = this.buildTerminationBenefitReviewItem(
       leanBenefit,
       employee,
@@ -966,7 +974,10 @@ export class PayrollExecutionService {
       return false;
     }
 
-    if (clearanceChecklist.equipmentList && Array.isArray(clearanceChecklist.equipmentList)) {
+    if (
+      clearanceChecklist.equipmentList &&
+      Array.isArray(clearanceChecklist.equipmentList)
+    ) {
       const allEquipmentReturned = clearanceChecklist.equipmentList.every(
         (equipment: any) => equipment.returned === true,
       );
@@ -1120,7 +1131,8 @@ export class PayrollExecutionService {
       employeeId: terminationBenefit.employeeId.toString(),
     });
 
-    const leanBenefit = terminationBenefit.toObject() as LeanEmployeeTerminationResignation;
+    const leanBenefit =
+      terminationBenefit.toObject() as LeanEmployeeTerminationResignation;
     const reviewItem = this.buildTerminationBenefitReviewItem(
       leanBenefit,
       employee,
@@ -1138,7 +1150,9 @@ export class PayrollExecutionService {
     const query: FilterQuery<payrollRunsDocument> = {};
 
     if (filter.status) {
-      if (!Object.values(PayRollStatus).includes(filter.status as PayRollStatus)) {
+      if (
+        !Object.values(PayRollStatus).includes(filter.status as PayRollStatus)
+      ) {
         throw new BadRequestException('Unsupported payroll run status filter');
       }
       query.status = filter.status as PayRollStatus;
@@ -1173,7 +1187,9 @@ export class PayrollExecutionService {
     }
 
     if (!dto.action || !['approve', 'reject'].includes(dto.action)) {
-      throw new BadRequestException('Review action must be either "approve" or "reject"');
+      throw new BadRequestException(
+        'Review action must be either "approve" or "reject"',
+      );
     }
 
     const payrollRun = await this.payrollRunModel.findById(payrollRunId).exec();
@@ -1186,7 +1202,9 @@ export class PayrollExecutionService {
       if (payrollRun.status === PayRollStatus.DRAFT) {
         payrollRun.status = PayRollStatus.UNDER_REVIEW;
         if (dto.reviewerId) {
-          payrollRun.payrollManagerId = new Types.ObjectId(dto.reviewerId) as any;
+          payrollRun.payrollManagerId = new Types.ObjectId(
+            dto.reviewerId,
+          ) as any;
         }
         payrollRun.managerApprovalDate = new Date();
       } else if (payrollRun.status === PayRollStatus.UNDER_REVIEW) {
@@ -1213,7 +1231,8 @@ export class PayrollExecutionService {
         );
       }
       payrollRun.status = PayRollStatus.REJECTED;
-      payrollRun.rejectionReason = dto.rejectionReason || dto.comment || 'Rejected by reviewer';
+      payrollRun.rejectionReason =
+        dto.rejectionReason || dto.comment || 'Rejected by reviewer';
     }
 
     await payrollRun.save();
@@ -1255,7 +1274,10 @@ export class PayrollExecutionService {
       throw new NotFoundException('Payroll run not found');
     }
 
-    if (payrollRun.status !== PayRollStatus.REJECTED && payrollRun.status !== PayRollStatus.DRAFT) {
+    if (
+      payrollRun.status !== PayRollStatus.REJECTED &&
+      payrollRun.status !== PayRollStatus.DRAFT
+    ) {
       throw new ForbiddenException(
         'Payroll runs can only be edited when in DRAFT or REJECTED status',
       );
@@ -1388,7 +1410,9 @@ export class PayrollExecutionService {
     );
 
     if (!normalized) {
-      throw new BadRequestException('Unsupported termination benefit status value');
+      throw new BadRequestException(
+        'Unsupported termination benefit status value',
+      );
     }
 
     if (normalized === BenefitStatus.APPROVED) {
@@ -1460,7 +1484,9 @@ export class PayrollExecutionService {
 
     let payrollRun: payrollRunsDocument;
     if (dto.payrollRunId && Types.ObjectId.isValid(dto.payrollRunId)) {
-      const foundRun = await this.payrollRunModel.findById(dto.payrollRunId).exec();
+      const foundRun = await this.payrollRunModel
+        .findById(dto.payrollRunId)
+        .exec();
       if (!foundRun) {
         throw new NotFoundException('Payroll run not found');
       }
@@ -1573,16 +1599,16 @@ export class PayrollExecutionService {
         const includeInsurance = dto.includeInsurance !== false;
         const includeTaxes = dto.includeTaxes !== false;
 
-            const calculation = await this.calculateEmployeePayroll(
-              employee,
-              contract,
-              payrollPeriod,
-              { includeAllowances, includeInsurance, includeTaxes },
-              allowances,
-              taxRules,
-              insuranceBrackets,
-              payGrades,
-            );
+        const calculation = await this.calculateEmployeePayroll(
+          employee,
+          contract,
+          payrollPeriod,
+          { includeAllowances, includeInsurance, includeTaxes },
+          allowances,
+          taxRules,
+          insuranceBrackets,
+          payGrades,
+        );
 
         const existingDetail = await this.employeePayrollDetailsModel
           .findOne({
@@ -1613,7 +1639,7 @@ export class PayrollExecutionService {
             netPay: calculation.netPay,
             bonus: calculation.bonus,
             benefit: calculation.benefit,
-            bankStatus: calculation.bankStatus as BankStatus,
+            bankStatus: calculation.bankStatus,
             exceptions: calculation.exceptions,
           });
           await payrollDetail.save();
@@ -1677,7 +1703,10 @@ export class PayrollExecutionService {
       return { valid: false, reason: 'Employee contract not found' };
     }
 
-    if (employee.contractEndDate && new Date(employee.contractEndDate) < payrollPeriod) {
+    if (
+      employee.contractEndDate &&
+      new Date(employee.contractEndDate) < payrollPeriod
+    ) {
       return { valid: false, reason: 'Employee contract has expired' };
     }
 
@@ -1699,7 +1728,11 @@ export class PayrollExecutionService {
     employee: any,
     contract: any,
     payrollPeriod: Date,
-    schemaOptions: { includeAllowances: boolean; includeInsurance: boolean; includeTaxes: boolean },
+    schemaOptions: {
+      includeAllowances: boolean;
+      includeInsurance: boolean;
+      includeTaxes: boolean;
+    },
     allowances: any[],
     taxRules: any[],
     insuranceBrackets: any[],
@@ -1720,34 +1753,62 @@ export class PayrollExecutionService {
     let baseSalary = this.calculateBaseSalary(employee, contract, payGrades);
 
     // Step 2: Calculate proration for mid-month hires/terminations
-    const periodStart = new Date(payrollPeriod.getFullYear(), payrollPeriod.getMonth(), 1);
-    const periodEnd = new Date(payrollPeriod.getFullYear(), payrollPeriod.getMonth() + 1, 0);
+    const periodStart = new Date(
+      payrollPeriod.getFullYear(),
+      payrollPeriod.getMonth(),
+      1,
+    );
+    const periodEnd = new Date(
+      payrollPeriod.getFullYear(),
+      payrollPeriod.getMonth() + 1,
+      0,
+    );
     const daysInPeriod = periodEnd.getDate();
 
-    const contractStart = contract.startDate ? new Date(contract.startDate) : (employee.hireDate ? new Date(employee.hireDate) : null);
-    const contractEnd = contract.endDate ? new Date(contract.endDate) : (employee.contractEndDate ? new Date(employee.contractEndDate) : null);
+    const contractStart = contract.startDate
+      ? new Date(contract.startDate)
+      : employee.hireDate
+        ? new Date(employee.hireDate)
+        : null;
+    const contractEnd = contract.endDate
+      ? new Date(contract.endDate)
+      : employee.contractEndDate
+        ? new Date(employee.contractEndDate)
+        : null;
 
     let workedDays = daysInPeriod;
     if (contractStart && contractStart > periodStart) {
       const from = contractStart;
-      const to = contractEnd && contractEnd < periodEnd ? contractEnd : periodEnd;
+      const to =
+        contractEnd && contractEnd < periodEnd ? contractEnd : periodEnd;
       if (to >= from) {
-        workedDays = Math.ceil((to.getTime() - from.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+        workedDays =
+          Math.ceil((to.getTime() - from.getTime()) / (1000 * 60 * 60 * 24)) +
+          1;
       } else {
         workedDays = 0;
       }
     } else if (contractEnd && contractEnd < periodEnd) {
-      const from = contractStart && contractStart > periodStart ? contractStart : periodStart;
+      const from =
+        contractStart && contractStart > periodStart
+          ? contractStart
+          : periodStart;
       const to = contractEnd;
       if (to >= from) {
-        workedDays = Math.ceil((to.getTime() - from.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+        workedDays =
+          Math.ceil((to.getTime() - from.getTime()) / (1000 * 60 * 60 * 24)) +
+          1;
       } else {
         workedDays = 0;
       }
     }
 
-    const prorateFactor = daysInPeriod > 0 ? Math.max(0, Math.min(1, workedDays / daysInPeriod)) : 1;
-    const proratedBaseSalary = Math.round(baseSalary * prorateFactor * 100) / 100;
+    const prorateFactor =
+      daysInPeriod > 0
+        ? Math.max(0, Math.min(1, workedDays / daysInPeriod))
+        : 1;
+    const proratedBaseSalary =
+      Math.round(baseSalary * prorateFactor * 100) / 100;
     baseSalary = proratedBaseSalary;
 
     // Step 3: Calculate allowances (prorated)
@@ -1757,7 +1818,10 @@ export class PayrollExecutionService {
       for (const allowance of allowances) {
         const amount = allowance.amount || 0;
         const proratedAmount = Math.round(amount * prorateFactor * 100) / 100;
-        allowanceBreakdown.push({ name: allowance.name, amount: proratedAmount });
+        allowanceBreakdown.push({
+          name: allowance.name,
+          amount: proratedAmount,
+        });
         totalAllowances += proratedAmount;
       }
     }
@@ -1770,8 +1834,13 @@ export class PayrollExecutionService {
     let totalTaxes = 0;
     if (schemaOptions.includeTaxes) {
       for (const taxRule of taxRules) {
-        const taxAmount = Math.round((grossSalary * (taxRule.rate || 0)) / 100 * 100) / 100;
-        taxBreakdown.push({ name: taxRule.name, rate: taxRule.rate, amount: taxAmount });
+        const taxAmount =
+          Math.round(((grossSalary * (taxRule.rate || 0)) / 100) * 100) / 100;
+        taxBreakdown.push({
+          name: taxRule.name,
+          rate: taxRule.rate,
+          amount: taxAmount,
+        });
         totalTaxes += taxAmount;
       }
     }
@@ -1787,15 +1856,24 @@ export class PayrollExecutionService {
     let totalInsurance = 0;
     if (schemaOptions.includeInsurance) {
       for (const insurance of insuranceBrackets) {
-        if (grossSalary >= (insurance.minSalary || 0) && grossSalary <= (insurance.maxSalary || Infinity)) {
-          const employeeAmount = Math.round((grossSalary * (insurance.employeeRate || 0)) / 100 * 100) / 100;
-          const employerAmount = Math.round((grossSalary * (insurance.employerRate || 0)) / 100 * 100) / 100;
+        if (
+          grossSalary >= (insurance.minSalary || 0) &&
+          grossSalary <= (insurance.maxSalary || Infinity)
+        ) {
+          const employeeAmount =
+            Math.round(
+              ((grossSalary * (insurance.employeeRate || 0)) / 100) * 100,
+            ) / 100;
+          const employerAmount =
+            Math.round(
+              ((grossSalary * (insurance.employerRate || 0)) / 100) * 100,
+            ) / 100;
           insuranceBreakdown.push({
             name: insurance.name,
             employeeRate: insurance.employeeRate,
             employerRate: insurance.employerRate,
             employeeAmount,
-            employerAmount
+            employerAmount,
           });
           totalInsurance += employeeAmount;
         }
@@ -1803,23 +1881,34 @@ export class PayrollExecutionService {
     }
 
     // Step 7: Calculate Net Salary = Gross - Taxes - Insurance
-    const netSalary = Math.round((grossSalary - totalTaxes - totalInsurance) * 100) / 100;
+    const netSalary =
+      Math.round((grossSalary - totalTaxes - totalInsurance) * 100) / 100;
 
     // Step 8: Deduction Phase 3 - Unpaid Leave Days (deducted from net salary)
     const unpaidLeaveDays = employee.unpaidLeaveDays ?? 0;
     const dailyRate = grossSalary / 30; // Egyptian labor law: monthly salary / 30 days
-    const unpaidLeaveDeduction = Math.round(unpaidLeaveDays * dailyRate * 100) / 100;
+    const unpaidLeaveDeduction =
+      Math.round(unpaidLeaveDays * dailyRate * 100) / 100;
 
     // Step 9: Deduction Phase 4 - Penalties (must not reduce below minimum wage)
     const penalties = await this.getEmployeePenalties(employee._id);
     const penaltiesAmount = penalties > 0 ? penalties : 0;
 
     // Determine statutory minimum wage (Egyptian labor law 2025)
-    const payGrade = employee.payGradeId ? payGrades.find((pg: any) => pg._id.toString() === employee.payGradeId.toString()) : undefined;
-    const statutoryMin = (contract.minimumWage || payGrade?.minimumWage || Number(process.env.STATUTORY_MIN_WAGE) || 6000);
+    const payGrade = employee.payGradeId
+      ? payGrades.find(
+          (pg: any) => pg._id.toString() === employee.payGradeId.toString(),
+        )
+      : undefined;
+    const statutoryMin =
+      contract.minimumWage ||
+      payGrade?.minimumWage ||
+      Number(process.env.STATUTORY_MIN_WAGE) ||
+      6000;
 
     // Calculate net after unpaid leave
-    const netAfterUnpaidLeave = Math.round((netSalary - unpaidLeaveDeduction) * 100) / 100;
+    const netAfterUnpaidLeave =
+      Math.round((netSalary - unpaidLeaveDeduction) * 100) / 100;
 
     // Apply penalties but ensure we don't go below minimum wage
     const maxPenaltyAllowed = Math.max(0, netAfterUnpaidLeave - statutoryMin);
@@ -1830,7 +1919,10 @@ export class PayrollExecutionService {
     const refunds = employee.refunds ?? 0;
 
     // Step 11: Calculate Final Net Pay
-    let netPay = Math.round((netAfterUnpaidLeave - appliedPenalties - recoveries + refunds) * 100) / 100;
+    let netPay =
+      Math.round(
+        (netAfterUnpaidLeave - appliedPenalties - recoveries + refunds) * 100,
+      ) / 100;
 
     // Ensure net pay never goes below statutory minimum
     if (netPay < statutoryMin) {
@@ -1840,7 +1932,10 @@ export class PayrollExecutionService {
     // Build other deductions breakdown
     const otherDeductions: { name: string; amount: number }[] = [];
     if (unpaidLeaveDeduction > 0) {
-      otherDeductions.push({ name: 'Unpaid Leave', amount: unpaidLeaveDeduction });
+      otherDeductions.push({
+        name: 'Unpaid Leave',
+        amount: unpaidLeaveDeduction,
+      });
     }
     if (appliedPenalties > 0) {
       otherDeductions.push({ name: 'Penalties', amount: appliedPenalties });
@@ -1850,7 +1945,15 @@ export class PayrollExecutionService {
     }
 
     // Total deductions = taxes + insurance + unpaid leave + penalties + recoveries
-    const totalDeductions = Math.round((totalTaxes + totalInsurance + unpaidLeaveDeduction + appliedPenalties + recoveries) * 100) / 100;
+    const totalDeductions =
+      Math.round(
+        (totalTaxes +
+          totalInsurance +
+          unpaidLeaveDeduction +
+          appliedPenalties +
+          recoveries) *
+          100,
+      ) / 100;
 
     const breakdown = {
       grossSalary,
@@ -1909,16 +2012,16 @@ export class PayrollExecutionService {
     );
   }
 
-  private async getEmployeePenalties(employeeId: Types.ObjectId): Promise<number> {
+  private async getEmployeePenalties(
+    employeeId: Types.ObjectId,
+  ): Promise<number> {
     try {
-      const penaltiesModel = this.employeeProfileModel.db.models['employeePenalties'];
+      const penaltiesModel =
+        this.employeeProfileModel.db.models['employeePenalties'];
       if (!penaltiesModel) {
         return 0;
       }
-      const penalties = await penaltiesModel
-        .find({ employeeId })
-        .lean()
-        .exec();
+      const penalties = await penaltiesModel.find({ employeeId }).lean().exec();
       return penalties.reduce(
         (sum: number, p: any) => sum + (p.amount || 0),
         0,
@@ -1964,22 +2067,41 @@ export class PayrollExecutionService {
    */
   async handleNewHireEvent(
     employeeId: string,
-    onboardingPayload?: { signingBonusFlag?: boolean; signingBonusAmount?: number; paymentDate?: string | Date },
+    onboardingPayload?: {
+      signingBonusFlag?: boolean;
+      signingBonusAmount?: number;
+      paymentDate?: string | Date;
+    },
   ) {
     if (!Types.ObjectId.isValid(employeeId)) {
       throw new BadRequestException('Invalid employee identifier');
     }
 
-    const employee = await this.employeeProfileModel.findById(employeeId).lean().exec();
+    const employee = await this.employeeProfileModel
+      .findById(employeeId)
+      .lean()
+      .exec();
     if (!employee) {
       throw new NotFoundException('Employee profile not found');
     }
 
-    const contract = await this.contractModel.findOne({ employeeId: new Types.ObjectId(employeeId) }).lean().exec();
+    const contract = await this.contractModel
+      .findOne({ employeeId: new Types.ObjectId(employeeId) })
+      .lean()
+      .exec();
 
-    const eligibleByContract = !!(contract && !Array.isArray(contract) && (contract.signingBonusEligible || contract.signingBonusAmount));
+    const eligibleByContract = !!(
+      contract &&
+      !Array.isArray(contract) &&
+      (contract.signingBonusEligible || contract.signingBonusAmount)
+    );
     const eligibleByOnboarding = !!onboardingPayload?.signingBonusFlag;
-    const amount = onboardingPayload?.signingBonusAmount ?? (contract && !Array.isArray(contract) ? contract.signingBonusAmount : undefined) ?? 0;
+    const amount =
+      onboardingPayload?.signingBonusAmount ??
+      (contract && !Array.isArray(contract)
+        ? contract.signingBonusAmount
+        : undefined) ??
+      0;
 
     if (!eligibleByContract && !eligibleByOnboarding) {
       // nothing to auto-process
@@ -1987,11 +2109,17 @@ export class PayrollExecutionService {
     }
 
     // prepare payment date: use provided or now
-    const paymentDate = (onboardingPayload?.paymentDate ? this.normalizeDate(onboardingPayload.paymentDate) : undefined) ?? new Date();
+    const paymentDate =
+      (onboardingPayload?.paymentDate
+        ? this.normalizeDate(onboardingPayload.paymentDate)
+        : undefined) ?? new Date();
 
     const newRecord: any = {
       employeeId: new Types.ObjectId(employeeId),
-      signingBonusId: (contract && !Array.isArray(contract) ? contract.signingBonusId : undefined) ?? undefined,
+      signingBonusId:
+        (contract && !Array.isArray(contract)
+          ? contract.signingBonusId
+          : undefined) ?? undefined,
       givenAmount: amount, // Updated to use givenAmount to match schema
       paymentDate,
       status: BonusStatus.PENDING,
@@ -1999,7 +2127,7 @@ export class PayrollExecutionService {
       createdAt: new Date(),
     };
 
-    const created = await this.signingBonusModel.create(newRecord as any);
+    const created = await this.signingBonusModel.create(newRecord);
 
     this.logSystemAction('AUTO_PROCESS_SIGNING_BONUS', {
       employeeId,
@@ -2024,21 +2152,39 @@ export class PayrollExecutionService {
       throw new BadRequestException('Invalid employee identifier');
     }
 
-    const employee = await this.employeeProfileModel.findById(employeeId).lean().exec();
+    const employee = await this.employeeProfileModel
+      .findById(employeeId)
+      .lean()
+      .exec();
     if (!employee) {
       throw new NotFoundException('Employee profile not found');
     }
 
-    const contract = await this.contractModel.findOne({ employeeId: new Types.ObjectId(employeeId) }).lean().exec();
+    const contract = await this.contractModel
+      .findOne({ employeeId: new Types.ObjectId(employeeId) })
+      .lean()
+      .exec();
     if (!contract || Array.isArray(contract)) {
       throw new BadRequestException('Employee contract not found');
     }
 
-    const termDate = (opts?.terminationDate ? this.normalizeDate(opts.terminationDate) : undefined) ?? new Date();
+    const termDate =
+      (opts?.terminationDate
+        ? this.normalizeDate(opts.terminationDate)
+        : undefined) ?? new Date();
 
     // compute tenure in years
-    const start = contract.startDate ? new Date(contract.startDate) : ((employee as any).hireDate ? new Date((employee as any).hireDate) : null);
-    const tenureYears = start ? Math.max(0, (termDate.getTime() - start.getTime()) / (1000 * 60 * 60 * 24 * 365)) : 0;
+    const start = contract.startDate
+      ? new Date(contract.startDate)
+      : (employee as any).hireDate
+        ? new Date((employee as any).hireDate)
+        : null;
+    const tenureYears = start
+      ? Math.max(
+          0,
+          (termDate.getTime() - start.getTime()) / (1000 * 60 * 60 * 24 * 365),
+        )
+      : 0;
 
     const grossSalary = contract.grossSalary || 0;
 
@@ -2070,7 +2216,7 @@ export class PayrollExecutionService {
         createdAt: new Date(),
         processedAutomatically: true,
       };
-      const created = await this.terminationBenefitModel.create(record as any);
+      const created = await this.terminationBenefitModel.create(record);
       createdRecords.push(created);
     }
 
@@ -2097,25 +2243,45 @@ export class PayrollExecutionService {
       throw new BadRequestException('Invalid employee identifier');
     }
 
-    const employee = await this.employeeProfileModel.findById(employeeId).lean().exec();
+    const employee = await this.employeeProfileModel
+      .findById(employeeId)
+      .lean()
+      .exec();
     if (!employee) {
       throw new NotFoundException('Employee profile not found');
     }
 
-    const contract = await this.contractModel.findOne({ employeeId: new Types.ObjectId(employeeId) }).lean().exec();
+    const contract = await this.contractModel
+      .findOne({ employeeId: new Types.ObjectId(employeeId) })
+      .lean()
+      .exec();
     if (!contract || Array.isArray(contract)) {
       throw new BadRequestException('Employee contract not found');
     }
 
-    const termDate = (opts?.terminationDate ? this.normalizeDate(opts.terminationDate) : undefined) ?? new Date();
-    const start = contract.startDate ? new Date(contract.startDate) : ((employee as any).hireDate ? new Date((employee as any).hireDate) : null);
-    const tenureYears = start ? Math.max(0, (termDate.getTime() - start.getTime()) / (1000 * 60 * 60 * 24 * 365)) : 0;
+    const termDate =
+      (opts?.terminationDate
+        ? this.normalizeDate(opts.terminationDate)
+        : undefined) ?? new Date();
+    const start = contract.startDate
+      ? new Date(contract.startDate)
+      : (employee as any).hireDate
+        ? new Date((employee as any).hireDate)
+        : null;
+    const tenureYears = start
+      ? Math.max(
+          0,
+          (termDate.getTime() - start.getTime()) / (1000 * 60 * 60 * 24 * 365),
+        )
+      : 0;
 
     const grossSalary = contract.grossSalary || 0;
 
     // severance: simple placeholder (e.g., one month gross per year of service if included)
     const includeSeverance = opts?.includeSeverance ?? true;
-    const severance = includeSeverance ? Math.round(grossSalary * tenureYears) : 0;
+    const severance = includeSeverance
+      ? Math.round(grossSalary * tenureYears)
+      : 0;
 
     // gratuity: same placeholder as resignation
     const gratuity = Math.floor((grossSalary * (tenureYears || 0)) / 12);
@@ -2141,7 +2307,7 @@ export class PayrollExecutionService {
         createdAt: new Date(),
         processedAutomatically: true,
       };
-      const created = await this.terminationBenefitModel.create(record as any);
+      const created = await this.terminationBenefitModel.create(record);
       createdRecords.push(created);
     }
 
@@ -2163,8 +2329,13 @@ export class PayrollExecutionService {
     employeeId: string,
     payrollRunId: string,
   ): Promise<any> {
-    if (!Types.ObjectId.isValid(employeeId) || !Types.ObjectId.isValid(payrollRunId)) {
-      throw new BadRequestException('Invalid employee or payroll run identifier');
+    if (
+      !Types.ObjectId.isValid(employeeId) ||
+      !Types.ObjectId.isValid(payrollRunId)
+    ) {
+      throw new BadRequestException(
+        'Invalid employee or payroll run identifier',
+      );
     }
 
     const payrollRun = await this.payrollRunModel.findById(payrollRunId).exec();
@@ -2180,19 +2351,39 @@ export class PayrollExecutionService {
       .exec();
 
     if (!employeePayrollDetail) {
-      throw new NotFoundException('Employee payroll details not found for this payroll run');
+      throw new NotFoundException(
+        'Employee payroll details not found for this payroll run',
+      );
     }
 
-    const employee = await this.employeeProfileModel.findById(employeeId).lean().exec();
+    const employee = await this.employeeProfileModel
+      .findById(employeeId)
+      .lean()
+      .exec();
     if (!employee) {
       throw new NotFoundException('Employee profile not found');
     }
 
-    const contract = await this.contractModel.findOne({ employeeId: new Types.ObjectId(employeeId) }).lean().exec();
-    const allowances = await this.allowanceModel.find({ status: ConfigStatus.APPROVED }).lean().exec();
-    const taxRules = await this.taxRulesModel.find({ status: ConfigStatus.APPROVED }).lean().exec();
-    const insuranceBrackets = await this.insuranceBracketsModel.find({ status: ConfigStatus.APPROVED }).lean().exec();
-    const payGrades = await this.payGradeModel.find({ status: ConfigStatus.APPROVED }).lean().exec();
+    const contract = await this.contractModel
+      .findOne({ employeeId: new Types.ObjectId(employeeId) })
+      .lean()
+      .exec();
+    const allowances = await this.allowanceModel
+      .find({ status: ConfigStatus.APPROVED })
+      .lean()
+      .exec();
+    const taxRules = await this.taxRulesModel
+      .find({ status: ConfigStatus.APPROVED })
+      .lean()
+      .exec();
+    const insuranceBrackets = await this.insuranceBracketsModel
+      .find({ status: ConfigStatus.APPROVED })
+      .lean()
+      .exec();
+    const payGrades = await this.payGradeModel
+      .find({ status: ConfigStatus.APPROVED })
+      .lean()
+      .exec();
 
     // Recalculate or use existing breakdown
     const calculation = await this.calculateEmployeePayroll(
@@ -2212,17 +2403,23 @@ export class PayrollExecutionService {
       allowances: calculation.breakdown.allowances || [],
       bonuses: [],
       benefits: [],
-      refunds: calculation.breakdown.refunds > 0 ? [{ name: 'Refund', amount: calculation.breakdown.refunds }] : [],
+      refunds:
+        calculation.breakdown.refunds > 0
+          ? [{ name: 'Refund', amount: calculation.breakdown.refunds }]
+          : [],
     };
 
     // Build deductions details
     const deductionsDetails = {
       taxes: calculation.breakdown.taxes || [],
       insurances: calculation.breakdown.insurance || [],
-      penalties: calculation.breakdown.appliedPenalties > 0 ? {
-        reason: 'Misconduct penalties',
-        amount: calculation.breakdown.appliedPenalties,
-      } : undefined,
+      penalties:
+        calculation.breakdown.appliedPenalties > 0
+          ? {
+              reason: 'Misconduct penalties',
+              amount: calculation.breakdown.appliedPenalties,
+            }
+          : undefined,
     };
 
     // Check if payslip already exists
@@ -2293,7 +2490,9 @@ export class PayrollExecutionService {
     }
 
     if (payrollRun.status !== PayRollStatus.APPROVED) {
-      throw new BadRequestException('Payroll run must be approved before generating payslips');
+      throw new BadRequestException(
+        'Payroll run must be approved before generating payslips',
+      );
     }
 
     const employeePayrollDetails = await this.employeePayrollDetailsModel
@@ -2302,7 +2501,9 @@ export class PayrollExecutionService {
       .exec();
 
     if (!employeePayrollDetails.length) {
-      throw new NotFoundException('No employee payroll details found for this payroll run');
+      throw new NotFoundException(
+        'No employee payroll details found for this payroll run',
+      );
     }
 
     const payslips: any[] = [];
@@ -2334,8 +2535,13 @@ export class PayrollExecutionService {
    * Get payslip for a specific employee in a payroll run
    */
   async getPayslip(employeeId: string, payrollRunId: string): Promise<any> {
-    if (!Types.ObjectId.isValid(employeeId) || !Types.ObjectId.isValid(payrollRunId)) {
-      throw new BadRequestException('Invalid employee or payroll run identifier');
+    if (
+      !Types.ObjectId.isValid(employeeId) ||
+      !Types.ObjectId.isValid(payrollRunId)
+    ) {
+      throw new BadRequestException(
+        'Invalid employee or payroll run identifier',
+      );
     }
 
     const PaySlipModel = this.employeeProfileModel.db.models['paySlip'];
@@ -2497,8 +2703,8 @@ export class PayrollExecutionService {
     let totalGrossPay = 0;
     let totalDeductions = 0;
     let totalNetPay = 0;
-    let totalTaxes = 0;
-    let totalInsurance = 0;
+    const totalTaxes = 0;
+    const totalInsurance = 0;
 
     const employeeBreakdown: PayrollPreviewDashboard['employeeBreakdown'] = [];
 
@@ -2548,8 +2754,12 @@ export class PayrollExecutionService {
     const canEdit =
       payrollRun.status === PayRollStatus.DRAFT ||
       payrollRun.status === PayRollStatus.REJECTED;
-    const canApprove = payrollRun.status !== PayRollStatus.APPROVED && payrollRun.status !== PayRollStatus.LOCKED;
-    const canReject = payrollRun.status !== PayRollStatus.APPROVED && payrollRun.status !== PayRollStatus.LOCKED;
+    const canApprove =
+      payrollRun.status !== PayRollStatus.APPROVED &&
+      payrollRun.status !== PayRollStatus.LOCKED;
+    const canReject =
+      payrollRun.status !== PayRollStatus.APPROVED &&
+      payrollRun.status !== PayRollStatus.LOCKED;
 
     return {
       payrollRunId: payrollRun._id.toString(),
@@ -2669,7 +2879,8 @@ export class PayrollExecutionService {
         );
 
         if (percentageChange > threshold && previousNetPay > 0) {
-          const direction = currentNetPay > previousNetPay ? 'increase' : 'decrease';
+          const direction =
+            currentNetPay > previousNetPay ? 'increase' : 'decrease';
           irregularities.push({
             type: 'salary_spike',
             severity: percentageChange > 0.5 ? 'high' : 'medium',
@@ -2685,7 +2896,8 @@ export class PayrollExecutionService {
 
       // 5. Check for unusual deductions (more than 40% of gross salary)
       const grossSalary = currentDetail.baseSalary + currentDetail.allowances;
-      const deductionPercentage = (currentDetail.deductions / grossSalary) * 100;
+      const deductionPercentage =
+        (currentDetail.deductions / grossSalary) * 100;
 
       if (deductionPercentage > 40 && grossSalary > 0) {
         irregularities.push({
@@ -2729,7 +2941,10 @@ export class PayrollExecutionService {
       currentStep = 'manager';
     } else if (payrollRun.status === PayRollStatus.PENDING_FINANCE_APPROVAL) {
       currentStep = 'finance';
-    } else if (payrollRun.status === PayRollStatus.APPROVED || payrollRun.status === PayRollStatus.LOCKED) {
+    } else if (
+      payrollRun.status === PayRollStatus.APPROVED ||
+      payrollRun.status === PayRollStatus.LOCKED
+    ) {
       currentStep = 'completed';
     }
 
@@ -2738,7 +2953,8 @@ export class PayrollExecutionService {
       specialist: {
         id: payrollRun.payrollSpecialistId?.toString(),
         date: (payrollRun as any).createdAt,
-        status: payrollRun.status === PayRollStatus.DRAFT ? 'pending' : 'completed',
+        status:
+          payrollRun.status === PayRollStatus.DRAFT ? 'pending' : 'completed',
       },
       manager: {
         id: payrollRun.payrollManagerId?.toString(),
@@ -2747,20 +2963,21 @@ export class PayrollExecutionService {
           payrollRun.status === PayRollStatus.DRAFT
             ? 'pending'
             : payrollRun.status === PayRollStatus.UNDER_REVIEW
-            ? 'in_review'
-            : payrollRun.managerApprovalDate
-            ? 'completed'
-            : 'pending',
+              ? 'in_review'
+              : payrollRun.managerApprovalDate
+                ? 'completed'
+                : 'pending',
       },
       finance: {
         id: payrollRun.financeStaffId?.toString(),
         date: payrollRun.financeApprovalDate,
         status:
-          payrollRun.status === PayRollStatus.APPROVED || payrollRun.status === PayRollStatus.LOCKED
+          payrollRun.status === PayRollStatus.APPROVED ||
+          payrollRun.status === PayRollStatus.LOCKED
             ? 'completed'
             : payrollRun.status === PayRollStatus.PENDING_FINANCE_APPROVAL
-            ? 'in_review'
-            : 'pending',
+              ? 'in_review'
+              : 'pending',
       },
     };
   }
@@ -3051,9 +3268,8 @@ export class PayrollExecutionService {
     }
 
     // Check for unresolved high-severity irregularities
-    const escalatedIrregularities = await this.getEscalatedIrregularities(
-      payrollRunId,
-    );
+    const escalatedIrregularities =
+      await this.getEscalatedIrregularities(payrollRunId);
     const unresolvedHighSeverity = escalatedIrregularities.filter(
       (i) => i.severity === 'high' && i.status === 'pending',
     );
@@ -3081,7 +3297,9 @@ export class PayrollExecutionService {
     }
 
     if (!dto.payrollManagerId) {
-      throw new BadRequestException('Payroll Manager ID is required to lock payroll');
+      throw new BadRequestException(
+        'Payroll Manager ID is required to lock payroll',
+      );
     }
 
     const payrollRun = await this.payrollRunModel.findById(payrollRunId).exec();
@@ -3188,7 +3406,10 @@ export class PayrollExecutionService {
     }
 
     // Verify payroll is approved
-    if (payrollRun.status !== PayRollStatus.APPROVED && payrollRun.status !== PayRollStatus.LOCKED) {
+    if (
+      payrollRun.status !== PayRollStatus.APPROVED &&
+      payrollRun.status !== PayRollStatus.LOCKED
+    ) {
       throw new BadRequestException(
         'Payslips can only be generated for APPROVED or LOCKED payroll runs',
       );

@@ -162,7 +162,232 @@ export class ShiftTemplateService {
    * Get all shift templates
    */
   async findAll(): Promise<ShiftTemplateDocument[]> {
-    return this.shiftTemplateModel.find().exec();
+    try {
+      console.log(
+        '[ShiftTemplateService] findAll() - Querying all shift templates...',
+      );
+      console.log(
+        '[ShiftTemplateService] Model collection name:',
+        this.shiftTemplateModel.collection.name,
+      );
+      console.log(
+        '[ShiftTemplateService] Model db name:',
+        this.shiftTemplateModel.db?.name || 'unknown',
+      );
+
+      // Get the actual database being used
+      const db = this.shiftTemplateModel.db;
+      if (db) {
+        // Get connection info
+        const client = (db as any).client;
+        if (client) {
+          console.log(
+            '[ShiftTemplateService] MongoDB connection host:',
+            client.options?.hosts || 'unknown',
+          );
+        }
+
+        // Get database name
+        const dbName =
+          (db as any).databaseName ||
+          (db as any).s?.namespace?.split('.')[0] ||
+          'unknown';
+        console.log('[ShiftTemplateService] Actual database name:', dbName);
+      }
+
+      // List all databases to verify connection and check for documents in other databases
+      try {
+        if (db) {
+          const client = (db as any).client;
+          if (client) {
+            const adminDb = client.db().admin();
+            const dbList = await adminDb.listDatabases();
+            console.log(
+              '[ShiftTemplateService] Available databases:',
+              dbList.databases.map(
+                (d: any) =>
+                  `${d.name} (${(d.sizeOnDisk / 1024 / 1024).toFixed(2)} MB)`,
+              ),
+            );
+
+            // Check other databases for shift templates (they might be in a different database)
+            const otherDatabases = [
+              'time_management',
+              'timemanagement',
+              'timemanagement_dev',
+            ];
+            console.log(
+              '[ShiftTemplateService] Checking other databases for shift templates...',
+            );
+            for (const dbName of otherDatabases) {
+              try {
+                const otherDb = client.db(dbName);
+                const count = await otherDb
+                  .collection('shifttemplates')
+                  .countDocuments({});
+                if (count > 0) {
+                  console.log(
+                    `[ShiftTemplateService] ⚠️ FOUND ${count} documents in database "${dbName}" collection "shifttemplates"!`,
+                  );
+                  const docs = await otherDb
+                    .collection('shifttemplates')
+                    .find({})
+                    .limit(6)
+                    .toArray();
+                  console.log(
+                    `[ShiftTemplateService] Document names in "${dbName}":`,
+                    docs.map((d: any) => d.name || 'NO NAME'),
+                  );
+                  console.log(
+                    `[ShiftTemplateService] Document IDs in "${dbName}":`,
+                    docs.map((d: any) => d._id),
+                  );
+                } else {
+                  console.log(
+                    `[ShiftTemplateService] Database "${dbName}" has 0 documents in "shifttemplates"`,
+                  );
+                }
+              } catch (e: any) {
+                console.log(
+                  `[ShiftTemplateService] Could not check database "${dbName}":`,
+                  e?.message || e,
+                );
+              }
+            }
+          }
+        }
+      } catch (e: any) {
+        console.log(
+          '[ShiftTemplateService] Could not list databases:',
+          e?.message || e,
+        );
+      }
+
+      // List all collections in current database using a simpler approach
+      try {
+        if (db) {
+          // Use the native MongoDB driver method - listCollections returns a cursor
+          const collectionsCursor: any = db.listCollections();
+          if (
+            collectionsCursor &&
+            typeof collectionsCursor.toArray === 'function'
+          ) {
+            const collections = await collectionsCursor.toArray();
+            console.log(
+              '[ShiftTemplateService] Collections in database:',
+              collections?.map((c: any) => c.name) || [],
+            );
+
+            // Count documents in each collection
+            for (const coll of collections || []) {
+              const count = await db.collection(coll.name).countDocuments({});
+              console.log(
+                `[ShiftTemplateService] Collection "${coll.name}": ${count} documents`,
+              );
+            }
+          } else {
+            // Fallback: try to get collections another way
+            console.log(
+              '[ShiftTemplateService] listCollections() returned unexpected type, trying alternative method',
+            );
+          }
+        }
+      } catch (e: any) {
+        console.log(
+          '[ShiftTemplateService] Could not list collections:',
+          e?.message || e,
+        );
+      }
+
+      // Try to get count first
+      const count = await this.shiftTemplateModel.countDocuments().exec();
+      console.log(
+        `[ShiftTemplateService] Total documents in collection: ${count}`,
+      );
+
+      // Try raw MongoDB query to verify (bypasses Mongoose schema validation)
+      const rawCount = await this.shiftTemplateModel.collection.countDocuments(
+        {},
+      );
+      console.log(`[ShiftTemplateService] Raw MongoDB count: ${rawCount}`);
+
+      // Get all raw documents without schema validation
+      const rawDocuments = await this.shiftTemplateModel.collection
+        .find({})
+        .toArray();
+      console.log(
+        `[ShiftTemplateService] Raw documents found: ${rawDocuments.length}`,
+      );
+      if (rawDocuments.length > 0) {
+        console.log(
+          '[ShiftTemplateService] Raw document _ids:',
+          rawDocuments.map((d) => d._id),
+        );
+        console.log(
+          '[ShiftTemplateService] Raw document names:',
+          rawDocuments.map((d) => d.name || 'NO NAME'),
+        );
+      }
+
+      // The collection listing above already shows all collections and their counts
+      // So we don't need to check again here
+
+      // Try with strict: false to include documents that don't fully match schema
+      const templates = await this.shiftTemplateModel.find().lean().exec();
+      console.log(
+        `[ShiftTemplateService] findAll() - Found ${templates?.length || 0} templates (with lean)`,
+      );
+
+      // Also try without lean() to see if there's a difference
+      const templatesWithMongoose = await this.shiftTemplateModel.find().exec();
+      console.log(
+        `[ShiftTemplateService] findAll() (with Mongoose) - Found ${templatesWithMongoose?.length || 0} templates`,
+      );
+
+      // Try with allowDiskUse and no validation
+      const allTemplates = await this.shiftTemplateModel
+        .find()
+        .lean({ defaults: true })
+        .exec();
+      console.log(
+        `[ShiftTemplateService] findAll() (lean with defaults) - Found ${allTemplates?.length || 0} templates`,
+      );
+
+      // If raw count is higher, there are documents that don't match schema
+      if (rawCount > templatesWithMongoose.length) {
+        console.warn(
+          `[ShiftTemplateService] ⚠️ WARNING: ${rawCount - templatesWithMongoose.length} documents are being filtered out by Mongoose schema validation!`,
+        );
+        console.warn(
+          `[ShiftTemplateService] These documents likely don't have required fields (name, type) or have invalid enum values.`,
+        );
+      }
+
+      if (templates && templates.length > 0) {
+        console.log(
+          '[ShiftTemplateService] Template names:',
+          templates.map((t) => t.name),
+        );
+        console.log(
+          '[ShiftTemplateService] Template IDs:',
+          templates.map((t) => t._id),
+        );
+        console.log(
+          '[ShiftTemplateService] Template statuses:',
+          templates.map((t) => t.status),
+        );
+      } else {
+        console.warn(
+          '[ShiftTemplateService] ⚠️ No templates found! Collection might be empty or query failed.',
+        );
+      }
+
+      // Return the Mongoose documents (not lean) for proper serialization
+      return templatesWithMongoose;
+    } catch (error) {
+      console.error('[ShiftTemplateService] ❌ Error in findAll():', error);
+      throw error;
+    }
   }
 
   /**

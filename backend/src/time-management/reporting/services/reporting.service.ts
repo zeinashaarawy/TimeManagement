@@ -1,9 +1,18 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
-import { AttendanceRecord, AttendanceRecordDocument } from '../../attendance/schemas/attendance-record.schema';
-import { PenaltyRecord, PenaltyRecordDocument } from '../../policy/schemas/penalty-record.schema';
-import { OvertimeRecord, OvertimeRecordDocument } from '../../policy/schemas/overtime-record.schema';
+import {
+  AttendanceRecord,
+  AttendanceRecordDocument,
+} from '../../attendance/schemas/attendance-record.schema';
+import {
+  PenaltyRecord,
+  PenaltyRecordDocument,
+} from '../../policy/schemas/penalty-record.schema';
+import {
+  OvertimeRecord,
+  OvertimeRecordDocument,
+} from '../../policy/schemas/overtime-record.schema';
 import { PenaltyStatus } from '../../policy/schemas/penalty-record.schema';
 import { OvertimeStatus } from '../../policy/schemas/overtime-record.schema';
 
@@ -35,12 +44,19 @@ export interface PenaltyReportFilters {
 @Injectable()
 export class ReportingService {
   constructor(
-    @InjectModel(AttendanceRecord.name) private attendanceModel: Model<AttendanceRecordDocument>,
-    @InjectModel(PenaltyRecord.name) private penaltyModel: Model<PenaltyRecordDocument>,
-    @InjectModel(OvertimeRecord.name) private overtimeModel: Model<OvertimeRecordDocument>,
+    @InjectModel(AttendanceRecord.name)
+    private attendanceModel: Model<AttendanceRecordDocument>,
+    @InjectModel(PenaltyRecord.name)
+    private penaltyModel: Model<PenaltyRecordDocument>,
+    @InjectModel(OvertimeRecord.name)
+    private overtimeModel: Model<OvertimeRecordDocument>,
   ) {}
 
-  async getAttendanceReport(filters: AttendanceReportFilters, page = 1, limit = 50) {
+  async getAttendanceReport(
+    filters: AttendanceReportFilters,
+    page = 1,
+    limit = 50,
+  ) {
     const query: any = {};
 
     if (filters.employeeId) {
@@ -58,11 +74,11 @@ export class ReportingService {
 
     const skip = (page - 1) * limit;
     const queryBuilder = this.attendanceModel.find(query);
-    
+
     // Note: employeeId populate removed because EmployeeProfile schema doesn't exist
     // The employeeId will be returned as ObjectId only
     // If you need employee details, you'll need to register EmployeeProfile schema first
-    
+
     // Only populate exceptionIds if requested
     if (filters.includeExceptions) {
       queryBuilder.populate({
@@ -70,13 +86,9 @@ export class ReportingService {
         strictPopulate: false,
       });
     }
-    
+
     const [records, total] = await Promise.all([
-      queryBuilder
-        .skip(skip)
-        .limit(limit)
-        .sort({ recordDate: -1 })
-        .exec(),
+      queryBuilder.skip(skip).limit(limit).sort({ recordDate: -1 }).exec(),
       this.attendanceModel.countDocuments(query),
     ]);
 
@@ -91,7 +103,11 @@ export class ReportingService {
     };
   }
 
-  async getOvertimeReport(filters: OvertimeReportFilters, page = 1, limit = 50) {
+  async getOvertimeReport(
+    filters: OvertimeReportFilters,
+    page = 1,
+    limit = 50,
+  ) {
     const query: any = {};
 
     if (filters.employeeId) {
@@ -137,7 +153,11 @@ export class ReportingService {
 
     return {
       data: records,
-      aggregates: aggregates[0] || { totalOvertimeMinutes: 0, totalAmount: 0, count: 0 },
+      aggregates: aggregates[0] || {
+        totalOvertimeMinutes: 0,
+        totalAmount: 0,
+        count: 0,
+      },
       pagination: {
         page,
         limit,
@@ -196,7 +216,11 @@ export class ReportingService {
 
     return {
       data: records,
-      aggregates: aggregates[0] || { totalAmount: 0, totalMinutes: 0, count: 0 },
+      aggregates: aggregates[0] || {
+        totalAmount: 0,
+        totalMinutes: 0,
+        count: 0,
+      },
       pagination: {
         page,
         limit,
@@ -206,14 +230,25 @@ export class ReportingService {
     };
   }
 
-  async exportAttendanceReportCSV(filters: AttendanceReportFilters): Promise<string> {
+  async exportAttendanceReportCSV(
+    filters: AttendanceReportFilters,
+  ): Promise<string> {
     const records = await this.attendanceModel
       .find(this.buildAttendanceQuery(filters))
       .sort({ recordDate: -1 })
       .exec();
 
-    const headers = ['Record ID', 'Date', 'Employee ID', 'Total Work Minutes', 'Punch Count', 'Has Missed Punch', 'Exception Count', 'Finalized'];
-    const rows = records.map(record => {
+    const headers = [
+      'Record ID',
+      'Date',
+      'Employee ID',
+      'Total Work Minutes',
+      'Punch Count',
+      'Has Missed Punch',
+      'Exception Count',
+      'Finalized',
+    ];
+    const rows = records.map((record) => {
       return [
         record._id.toString(),
         record.recordDate?.toISOString().split('T')[0] || '',
@@ -229,15 +264,25 @@ export class ReportingService {
     return this.generateCSV(headers, rows);
   }
 
-  async exportOvertimeReportCSV(filters: OvertimeReportFilters): Promise<string> {
+  async exportOvertimeReportCSV(
+    filters: OvertimeReportFilters,
+  ): Promise<string> {
     const records = await this.overtimeModel
       .find(this.buildOvertimeQuery(filters))
       .populate('policyId', 'name')
       .sort({ recordDate: -1 })
       .exec();
 
-    const headers = ['Date', 'Employee ID', 'Overtime Minutes', 'Multiplier', 'Amount', 'Status', 'Is Weekend'];
-    const rows = records.map(record => [
+    const headers = [
+      'Date',
+      'Employee ID',
+      'Overtime Minutes',
+      'Multiplier',
+      'Amount',
+      'Status',
+      'Is Weekend',
+    ];
+    const rows = records.map((record) => [
       record.recordDate.toISOString().split('T')[0],
       record.employeeId.toString(),
       record.overtimeMinutes.toString(),
@@ -257,8 +302,15 @@ export class ReportingService {
       .sort({ recordDate: -1 })
       .exec();
 
-    const headers = ['Date', 'Employee ID', 'Type', 'Minutes', 'Amount', 'Status'];
-    const rows = records.map(record => [
+    const headers = [
+      'Date',
+      'Employee ID',
+      'Type',
+      'Minutes',
+      'Amount',
+      'Status',
+    ];
+    const rows = records.map((record) => [
       record.recordDate.toISOString().split('T')[0],
       record.employeeId.toString(),
       record.type,
@@ -316,10 +368,9 @@ export class ReportingService {
 
     const csvRows = [
       headers.map(escapeCSV).join(','),
-      ...rows.map(row => row.map(escapeCSV).join(',')),
+      ...rows.map((row) => row.map(escapeCSV).join(',')),
     ];
 
     return csvRows.join('\n');
   }
 }
-

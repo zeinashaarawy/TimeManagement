@@ -19,4 +19,3 @@ export class UpdateApplicationStatusDto {
   @IsOptional()
   reason?: string; // For rejection
 }
-

@@ -17,7 +17,11 @@ import { AttendanceRecord } from '../../attendance/schemas/attendance-record.sch
 import { PenaltyRecord, PenaltyType } from '../schemas/penalty-record.schema';
 import { OvertimeRecord } from '../schemas/overtime-record.schema';
 import { PolicyScope, RoundingRule } from '../schemas/time-policy.schema';
-import { PunchType, TimeExceptionType, TimeExceptionStatus } from '../../enums/index';
+import {
+  PunchType,
+  TimeExceptionType,
+  TimeExceptionStatus,
+} from '../../enums/index';
 
 // Import the mocked TimeException
 import { TimeException } from '../../attendance/schemas/time-exception.schema';
@@ -101,7 +105,10 @@ describe('PolicyEngineService', () => {
               Object.assign(this, data);
             }
             save = jest.fn().mockImplementation(() => {
-              return Promise.resolve({ ...this.data, _id: new Types.ObjectId() });
+              return Promise.resolve({
+                ...this.data,
+                _id: new Types.ObjectId(),
+              });
             });
             static deleteMany = jest.fn();
             static find = jest.fn();
@@ -117,7 +124,10 @@ describe('PolicyEngineService', () => {
               Object.assign(this, data);
             }
             save = jest.fn().mockImplementation(() => {
-              return Promise.resolve({ ...this.data, _id: new Types.ObjectId() });
+              return Promise.resolve({
+                ...this.data,
+                _id: new Types.ObjectId(),
+              });
             });
             static deleteMany = jest.fn();
             static find = jest.fn();
@@ -128,7 +138,9 @@ describe('PolicyEngineService', () => {
 
     service = module.get<PolicyEngineService>(PolicyEngineService);
     policyModel = module.get<Model<any>>(getModelToken(TimePolicy.name));
-    attendanceModel = module.get<Model<any>>(getModelToken(AttendanceRecord.name));
+    attendanceModel = module.get<Model<any>>(
+      getModelToken(AttendanceRecord.name),
+    );
     exceptionModel = module.get<Model<any>>(getModelToken(TimeException.name));
     penaltyModel = module.get<Model<any>>(getModelToken(PenaltyRecord.name));
     overtimeModel = module.get<Model<any>>(getModelToken(OvertimeRecord.name));
@@ -236,7 +248,9 @@ describe('PolicyEngineService', () => {
 
       // Should have lateness penalty (15 - 5 grace = 10 minutes * 1 = 10)
       expect(result.penalties.length).toBeGreaterThan(0);
-      const latenessPenalty = result.penalties.find(p => p.type === PenaltyType.LATENESS);
+      const latenessPenalty = result.penalties.find(
+        (p) => p.type === PenaltyType.LATENESS,
+      );
       expect(latenessPenalty).toBeDefined();
     });
   });
@@ -381,7 +395,9 @@ describe('PolicyEngineService', () => {
       const mockFindOneRounding = jest.fn().mockReturnValue({
         sort: jest.fn().mockResolvedValue(roundingPolicy),
       });
-      jest.spyOn(policyModel, 'findOne').mockImplementation(mockFindOneRounding);
+      jest
+        .spyOn(policyModel, 'findOne')
+        .mockImplementation(mockFindOneRounding);
       jest.spyOn(exceptionModel, 'find').mockResolvedValue([]);
 
       const result = await service.computePolicyResults(
@@ -414,7 +430,9 @@ describe('PolicyEngineService', () => {
       const mockFindOneRounding = jest.fn().mockReturnValue({
         sort: jest.fn().mockResolvedValue(roundingPolicy),
       });
-      jest.spyOn(policyModel, 'findOne').mockImplementation(mockFindOneRounding);
+      jest
+        .spyOn(policyModel, 'findOne')
+        .mockImplementation(mockFindOneRounding);
       jest.spyOn(exceptionModel, 'find').mockResolvedValue([]);
 
       const result = await service.computePolicyResults(
@@ -455,7 +473,9 @@ describe('PolicyEngineService', () => {
         480, // 8 hours scheduled
       );
 
-      const shortTimePenalty = result.penalties.find(p => p.type === PenaltyType.SHORT_TIME);
+      const shortTimePenalty = result.penalties.find(
+        (p) => p.type === PenaltyType.SHORT_TIME,
+      );
       expect(shortTimePenalty).toBeDefined();
       expect(shortTimePenalty?.minutes).toBeGreaterThan(0);
     });
@@ -484,7 +504,9 @@ describe('PolicyEngineService', () => {
       );
 
       // 10 minutes short, but 15 min grace period, so no penalty
-      const shortTimePenalty = result.penalties.find(p => p.type === PenaltyType.SHORT_TIME);
+      const shortTimePenalty = result.penalties.find(
+        (p) => p.type === PenaltyType.SHORT_TIME,
+      );
       expect(shortTimePenalty).toBeUndefined();
     });
   });
@@ -509,8 +531,12 @@ describe('PolicyEngineService', () => {
       const mockFindOneException = jest.fn().mockReturnValue({
         sort: jest.fn().mockResolvedValue(mockPolicy),
       });
-      jest.spyOn(policyModel, 'findOne').mockImplementation(mockFindOneException);
-      jest.spyOn(exceptionModel, 'find').mockResolvedValue([approvedException] as any);
+      jest
+        .spyOn(policyModel, 'findOne')
+        .mockImplementation(mockFindOneException);
+      jest
+        .spyOn(exceptionModel, 'find')
+        .mockResolvedValue([approvedException] as any);
 
       const result = await service.computePolicyResults(
         record as any,
@@ -522,7 +548,9 @@ describe('PolicyEngineService', () => {
 
       // Lateness should be 0 due to approved exception
       expect(result.latenessMinutes).toBe(0);
-      const latenessPenalty = result.penalties.find(p => p.type === PenaltyType.LATENESS);
+      const latenessPenalty = result.penalties.find(
+        (p) => p.type === PenaltyType.LATENESS,
+      );
       expect(latenessPenalty).toBeUndefined();
     });
   });
@@ -551,7 +579,9 @@ describe('PolicyEngineService', () => {
         480,
       );
 
-      const latenessPenalty = result.penalties.find(p => p.type === PenaltyType.LATENESS);
+      const latenessPenalty = result.penalties.find(
+        (p) => p.type === PenaltyType.LATENESS,
+      );
       expect(latenessPenalty).toBeDefined();
       // Should be capped at maxDeductionPerDay (100)
       // 60 - 5 grace = 55 minutes * 1 = 55, but capped at 100
@@ -562,14 +592,20 @@ describe('PolicyEngineService', () => {
   describe('recalculatePolicyResults', () => {
     it('should delete existing pending records before recalculating', async () => {
       const recordId = new Types.ObjectId();
-      jest.spyOn(attendanceModel, 'findById').mockResolvedValue(mockAttendanceRecord as any);
+      jest
+        .spyOn(attendanceModel, 'findById')
+        .mockResolvedValue(mockAttendanceRecord as any);
       const mockFindOne = jest.fn().mockReturnValue({
         sort: jest.fn().mockResolvedValue(mockPolicy),
       });
       jest.spyOn(policyModel, 'findOne').mockImplementation(mockFindOne);
       jest.spyOn(exceptionModel, 'find').mockResolvedValue([]);
-      jest.spyOn(penaltyModel, 'deleteMany').mockResolvedValue({ deletedCount: 2 } as any);
-      jest.spyOn(overtimeModel, 'deleteMany').mockResolvedValue({ deletedCount: 1 } as any);
+      jest
+        .spyOn(penaltyModel, 'deleteMany')
+        .mockResolvedValue({ deletedCount: 2 } as any);
+      jest
+        .spyOn(overtimeModel, 'deleteMany')
+        .mockResolvedValue({ deletedCount: 1 } as any);
 
       await service.recalculatePolicyResults(
         recordId,
@@ -584,4 +620,3 @@ describe('PolicyEngineService', () => {
     });
   });
 });
-

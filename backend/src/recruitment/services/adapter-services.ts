@@ -6,7 +6,7 @@ import { OrganizationStructureService } from '../../organization-structure/organ
 
 /**
  * Adapter services bridge real subsystem services with recruitment interfaces.
- * 
+ *
  * REQUIREMENTS:
  * - EmployeeProfileService MUST be exported from EmployeeProfileModule
  * - OrganizationStructureService MUST be exported from OrganizationStructureModule
@@ -18,11 +18,12 @@ export class EmployeeProfileServiceAdapter implements IEmployeeProfileService {
   private readonly realService: EmployeeProfileService;
 
   constructor(
-    @Inject(EmployeeProfileService) employeeProfileService: EmployeeProfileService,
+    @Inject(EmployeeProfileService)
+    employeeProfileService: EmployeeProfileService,
   ) {
     if (!employeeProfileService) {
       throw new Error(
-        'EmployeeProfileService is required. Ensure EmployeeProfileModule exports EmployeeProfileService.'
+        'EmployeeProfileService is required. Ensure EmployeeProfileModule exports EmployeeProfileService.',
       );
     }
     this.realService = employeeProfileService;
@@ -61,22 +62,27 @@ export class EmployeeProfileServiceAdapter implements IEmployeeProfileService {
     this.logger.log(`Creating employee profile from candidate ${candidateId}`);
     const employee = await this.realService.create(createEmployeeDto as any);
     this.logger.log(`Employee profile created: ${employee._id.toString()}`);
-    
+
     return { employeeId: employee._id.toString() };
   }
 }
 
 @Injectable()
-export class OrganizationStructureServiceAdapter implements IOrganizationStructureService {
-  private readonly logger = new Logger(OrganizationStructureServiceAdapter.name);
+export class OrganizationStructureServiceAdapter
+  implements IOrganizationStructureService
+{
+  private readonly logger = new Logger(
+    OrganizationStructureServiceAdapter.name,
+  );
   private readonly realService: OrganizationStructureService;
 
   constructor(
-    @Inject(OrganizationStructureService) organizationStructureService: OrganizationStructureService,
+    @Inject(OrganizationStructureService)
+    organizationStructureService: OrganizationStructureService,
   ) {
     if (!organizationStructureService) {
       throw new Error(
-        'OrganizationStructureService is required. Ensure OrganizationStructureModule exports OrganizationStructureService.'
+        'OrganizationStructureService is required. Ensure OrganizationStructureModule exports OrganizationStructureService.',
       );
     }
     this.realService = organizationStructureService;

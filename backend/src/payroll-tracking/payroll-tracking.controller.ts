@@ -26,9 +26,8 @@ export class PayrollTrackingController {
     return this.payrollTrackingService.getHealth();
   }
 
-  
   // CLAIMS
-  
+
   @Post('claims')
   createClaim(@Body() dto: CreateClaimDto) {
     return this.payrollTrackingService.createClaim(dto);
@@ -52,9 +51,8 @@ export class PayrollTrackingController {
     return this.payrollTrackingService.updateClaimStatus(id, dto);
   }
 
-  
   // DISPUTES
-  
+
   @Post('disputes')
   createDispute(@Body() dto: CreateDisputeDto) {
     return this.payrollTrackingService.createDispute(dto);
@@ -78,9 +76,8 @@ export class PayrollTrackingController {
     return this.payrollTrackingService.updateDisputeStatus(id, dto);
   }
 
-  
   // REFUNDS
-  
+
   @Post('refunds')
   createRefund(@Body() dto: CreateRefundDto) {
     return this.payrollTrackingService.createRefund(dto);
@@ -103,8 +100,6 @@ export class PayrollTrackingController {
   ) {
     return this.payrollTrackingService.updateRefundStatus(id, dto);
   }
-
-
 
   @Get('payslips/:id')
   getPayslipById(@Param('id') id: string) {

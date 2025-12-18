@@ -76,7 +76,9 @@ describe('PolicyService', () => {
         scope: PolicyScope.DEPARTMENT,
       };
 
-      await expect(service.create(policyData)).rejects.toThrow(BadRequestException);
+      await expect(service.create(policyData)).rejects.toThrow(
+        BadRequestException,
+      );
     });
 
     it('should throw error if employee scope without employeeId', async () => {
@@ -85,7 +87,9 @@ describe('PolicyService', () => {
         scope: PolicyScope.EMPLOYEE,
       };
 
-      await expect(service.create(policyData)).rejects.toThrow(BadRequestException);
+      await expect(service.create(policyData)).rejects.toThrow(
+        BadRequestException,
+      );
     });
   });
 
@@ -101,7 +105,9 @@ describe('PolicyService', () => {
     it('should throw NotFoundException if policy not found', async () => {
       jest.spyOn(policyModel, 'findById').mockResolvedValue(null);
 
-      await expect(service.findById(new Types.ObjectId())).rejects.toThrow(NotFoundException);
+      await expect(service.findById(new Types.ObjectId())).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 
@@ -116,7 +122,9 @@ describe('PolicyService', () => {
           active: true,
         }),
       };
-      jest.spyOn(policyModel, 'findById').mockResolvedValue(mockPolicyWithToObject as any);
+      jest
+        .spyOn(policyModel, 'findById')
+        .mockResolvedValue(mockPolicyWithToObject);
 
       const result = await service.assignToEmployee(mockPolicy._id, employeeId);
 
@@ -125,4 +133,3 @@ describe('PolicyService', () => {
     });
   });
 });
-

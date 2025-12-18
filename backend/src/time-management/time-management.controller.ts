@@ -50,9 +50,19 @@ export class TimeManagementController {
   @Post('exceptions')
   async createException(
     @Body()
-    body: { employeeId: string; recordId: string; reason: string; assignedToId: string; type?: string },
+    body: {
+      employeeId: string;
+      recordId: string;
+      reason: string;
+      assignedToId: string;
+    },
   ) {
-    if (!body.employeeId || !body.recordId || !body.reason || !body.assignedToId) {
+    if (
+      !body.employeeId ||
+      !body.recordId ||
+      !body.reason ||
+      !body.assignedToId
+    ) {
       throw new BadRequestException('Missing required fields');
     }
 
@@ -71,7 +81,11 @@ export class TimeManagementController {
   @Post('attendance/correct')
   async correctAttendance(
     @Body()
-    body: { employeeId: string; date: string; punches: UpdatePunchDto[] },
+    body: {
+      employeeId: string;
+      date: string;
+      punches: UpdatePunchDto[];
+    },
   ) {
     if (!body.employeeId || !body.date || !body.punches) {
       throw new BadRequestException('Missing required fields');
@@ -87,9 +101,7 @@ export class TimeManagementController {
 
   // ------------------- MANUAL MISSED PUNCH DETECTION -------------------
   @Post('attendance/detect-missed')
-  async detectMissedPunch(
-    @Body() body: { employeeId: string; date: string },
-  ) {
+  async detectMissedPunch(@Body() body: { employeeId: string; date: string }) {
     if (!body.employeeId || !body.date) {
       throw new BadRequestException('Missing employeeId/date');
     }
@@ -98,7 +110,7 @@ export class TimeManagementController {
     return this.tmService.detectMissedPunches(body.employeeId, dateObj);
   }
 
-  @Get('notifications/:employeeId')
+  @Get('notifications/employee/:employeeId')
   async getNotifications(@Param('employeeId') employeeId: string) {
     return this.tmService.getNotifications(employeeId);
   }
@@ -116,7 +128,11 @@ export class TimeManagementController {
     if (!body.approvedBy) {
       throw new BadRequestException('approvedBy is required');
     }
-    return this.tmService.approveException(exceptionId, body.approvedBy, body.notes);
+    return this.tmService.approveException(
+      exceptionId,
+      body.approvedBy,
+      body.notes,
+    );
   }
 
   /**
@@ -131,7 +147,11 @@ export class TimeManagementController {
     if (!body.rejectedBy) {
       throw new BadRequestException('rejectedBy is required');
     }
-    return this.tmService.rejectException(exceptionId, body.rejectedBy, body.reason);
+    return this.tmService.rejectException(
+      exceptionId,
+      body.rejectedBy,
+      body.reason,
+    );
   }
 
   /**
@@ -159,6 +179,10 @@ export class TimeManagementController {
     if (!body.escalatedTo) {
       throw new BadRequestException('escalatedTo is required');
     }
-    return this.tmService.escalateException(exceptionId, body.escalatedTo, body.reason);
+    return this.tmService.escalateException(
+      exceptionId,
+      body.escalatedTo,
+      body.reason,
+    );
   }
 }

@@ -12,9 +12,8 @@ export class UpdateClaimStatusDto {
   approvedAmount?: number;
 
   @IsOptional()
-  rejectionReason?: string; 
+  rejectionReason?: string;
 
   @IsOptional()
   resolutionComment?: string;
 }
-

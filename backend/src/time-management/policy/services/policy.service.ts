@@ -1,25 +1,38 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
-import { TimePolicy, TimePolicyDocument, PolicyScope } from '../schemas/time-policy.schema';
+import {
+  TimePolicy,
+  TimePolicyDocument,
+  PolicyScope,
+} from '../schemas/time-policy.schema';
 
 @Injectable()
 export class PolicyService {
   constructor(
-    @InjectModel(TimePolicy.name) private policyModel: Model<TimePolicyDocument>,
+    @InjectModel(TimePolicy.name)
+    private policyModel: Model<TimePolicyDocument>,
   ) {}
 
   async create(policyData: Partial<TimePolicy>): Promise<TimePolicyDocument> {
-    try {
-      console.log('PolicyService.create called with:', JSON.stringify(policyData, null, 2));
-      
-      // Validate scope requirements
-      if (policyData.scope === PolicyScope.DEPARTMENT && !policyData.departmentId) {
-        throw new BadRequestException('Department ID is required for DEPARTMENT scope');
-      }
-      if (policyData.scope === PolicyScope.EMPLOYEE && !policyData.employeeId) {
-        throw new BadRequestException('Employee ID is required for EMPLOYEE scope');
-      }
+    // Validate scope requirements
+    if (
+      policyData.scope === PolicyScope.DEPARTMENT &&
+      !policyData.departmentId
+    ) {
+      throw new BadRequestException(
+        'Department ID is required for DEPARTMENT scope',
+      );
+    }
+    if (policyData.scope === PolicyScope.EMPLOYEE && !policyData.employeeId) {
+      throw new BadRequestException(
+        'Employee ID is required for EMPLOYEE scope',
+      );
+    }
 
       const policy = new this.policyModel(policyData);
       console.log('Policy model created, attempting to save...');
@@ -68,15 +81,30 @@ export class PolicyService {
     return policy;
   }
 
-  async update(id: Types.ObjectId, updateData: Partial<TimePolicy>): Promise<TimePolicyDocument> {
+  async update(
+    id: Types.ObjectId,
+    updateData: Partial<TimePolicy>,
+  ): Promise<TimePolicyDocument> {
     const policy = await this.findById(id);
-    
+
     // Validate scope requirements if scope is being changed
-    if (updateData.scope === PolicyScope.DEPARTMENT && !updateData.departmentId && !policy.departmentId) {
-      throw new BadRequestException('Department ID is required for DEPARTMENT scope');
+    if (
+      updateData.scope === PolicyScope.DEPARTMENT &&
+      !updateData.departmentId &&
+      !policy.departmentId
+    ) {
+      throw new BadRequestException(
+        'Department ID is required for DEPARTMENT scope',
+      );
     }
-    if (updateData.scope === PolicyScope.EMPLOYEE && !updateData.employeeId && !policy.employeeId) {
-      throw new BadRequestException('Employee ID is required for EMPLOYEE scope');
+    if (
+      updateData.scope === PolicyScope.EMPLOYEE &&
+      !updateData.employeeId &&
+      !policy.employeeId
+    ) {
+      throw new BadRequestException(
+        'Employee ID is required for EMPLOYEE scope',
+      );
     }
 
     Object.assign(policy, updateData);
@@ -88,9 +116,12 @@ export class PolicyService {
     await policy.deleteOne();
   }
 
-  async assignToEmployee(policyId: Types.ObjectId, employeeId: Types.ObjectId): Promise<TimePolicyDocument> {
+  async assignToEmployee(
+    policyId: Types.ObjectId,
+    employeeId: Types.ObjectId,
+  ): Promise<TimePolicyDocument> {
     const policy = await this.findById(policyId);
-    
+
     // Create employee-specific policy copy
     const employeePolicy = new this.policyModel({
       ...policy.toObject(),
@@ -98,13 +129,16 @@ export class PolicyService {
       scope: PolicyScope.EMPLOYEE,
       employeeId,
     });
-    
+
     return employeePolicy.save();
   }
 
-  async assignToDepartment(policyId: Types.ObjectId, departmentId: Types.ObjectId): Promise<TimePolicyDocument> {
+  async assignToDepartment(
+    policyId: Types.ObjectId,
+    departmentId: Types.ObjectId,
+  ): Promise<TimePolicyDocument> {
     const policy = await this.findById(policyId);
-    
+
     // Create department-specific policy copy
     const departmentPolicy = new this.policyModel({
       ...policy.toObject(),
@@ -112,8 +146,7 @@ export class PolicyService {
       scope: PolicyScope.DEPARTMENT,
       departmentId,
     });
-    
+
     return departmentPolicy.save();
   }
 }
-

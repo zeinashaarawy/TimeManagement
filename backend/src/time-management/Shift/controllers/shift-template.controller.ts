@@ -45,7 +45,7 @@ export class ShiftTemplateController {
    */
   @Post()
   @HttpCode(HttpStatus.CREATED)
-  @Roles('HR Manager', 'System Admin')
+  @Roles('HR_ADMIN', 'HR Manager', 'SYSTEM_ADMIN')
   @ApiBearerAuth()
   @ApiOperation({
     summary: 'Create a new shift template',
@@ -75,6 +75,7 @@ export class ShiftTemplateController {
    * GET /time-management/shifts
    */
   @Get()
+  @Roles('HR Manager', 'SYSTEM_ADMIN', 'EMPLOYEE', 'department employee')
   @ApiOperation({ summary: 'Get all shift templates' })
   @ApiResponse({
     status: 200,
@@ -82,7 +83,11 @@ export class ShiftTemplateController {
     type: [ShiftTemplateResponseDto],
   })
   async findAll() {
-    return await this.shiftTemplateService.findAll();
+    const templates = await this.shiftTemplateService.findAll();
+    console.log(
+      `[ShiftTemplateController] findAll() - Returning ${templates?.length || 0} templates`,
+    );
+    return templates;
   }
 
   /**
@@ -90,6 +95,7 @@ export class ShiftTemplateController {
    * GET /time-management/shifts/:id
    */
   @Get(':id')
+  @Roles('HR Manager', 'SYSTEM_ADMIN', 'EMPLOYEE', 'department employee')
   @ApiOperation({ summary: 'Get shift template by ID' })
   @ApiParam({ name: 'id', description: 'Shift template ID' })
   @ApiResponse({
@@ -107,7 +113,7 @@ export class ShiftTemplateController {
    * PATCH /time-management/shifts/:id
    */
   @Patch(':id')
-  @Roles('HR Manager', 'System Admin')
+  @Roles('HR_ADMIN', 'HR Manager', 'SYSTEM_ADMIN')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Update shift template' })
   @ApiParam({ name: 'id', description: 'Shift template ID' })
@@ -135,7 +141,7 @@ export class ShiftTemplateController {
    */
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
-  @Roles('HR Manager', 'System Admin')
+  @Roles('HR_ADMIN', 'HR Manager', 'SYSTEM_ADMIN')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Delete shift template' })
   @ApiParam({ name: 'id', description: 'Shift template ID' })

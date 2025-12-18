@@ -1,4 +1,13 @@
-import { IsMongoId, IsNumber, IsArray, IsString, IsOptional, IsDate, IsNotEmpty, Min } from 'class-validator';
+import {
+  IsMongoId,
+  IsNumber,
+  IsArray,
+  IsString,
+  IsOptional,
+  IsDate,
+  IsNotEmpty,
+  Min,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class CreateOfferDto {
@@ -46,4 +55,3 @@ export class CreateOfferDto {
   @Type(() => Date)
   deadline: Date;
 }
-

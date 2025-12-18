@@ -13,4 +13,3 @@ export class RejectionTemplateDto {
   @IsNotEmpty()
   reason: string;
 }
-

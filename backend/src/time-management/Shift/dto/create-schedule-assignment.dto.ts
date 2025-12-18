@@ -35,7 +35,8 @@ export class CreateScheduleAssignmentDto {
   effectiveTo?: string | null; // When assignment ends (ISO 8601 format: YYYY-MM-DD or YYYY-MM-DDTHH:mm:ssZ, null = indefinite)
 
   @IsString()
-  assignedBy: string; // Employee ID of who made the assignment
+  @IsOptional()
+  assignedBy?: string; // Employee ID of who made the assignment (optional - will be set from authenticated user if not provided)
 
   @IsEnum(['manual', 'bulk_assignment', 'automatic'])
   @IsOptional()

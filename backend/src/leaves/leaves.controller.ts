@@ -170,7 +170,10 @@ export class LeavesController {
   }
 
   @Put('leave-adjustment/:id/approve')
-  approveAdjustment(@Param('id') id: string, @Body() dto: ApproveAdjustmentDto) {
+  approveAdjustment(
+    @Param('id') id: string,
+    @Body() dto: ApproveAdjustmentDto,
+  ) {
     return this.service.leaveAdjustment.approve(id, dto);
   }
 
@@ -180,11 +183,6 @@ export class LeavesController {
   @Post('calendar')
   createCalendar(@Body() dto: CreateCalendarDto) {
     return this.service.calendar.create(dto);
-  }
-
-  @Get('calendar')
-  findAllCalendars() {
-    return this.service.calendar.findAll();
   }
 
   @Get('calendar/:year')
@@ -198,12 +196,6 @@ export class LeavesController {
     @Body() dto: UpdateCalendarDto,
   ) {
     return this.service.calendar.update(year, dto);
-  }
-
-  @Delete('calendar/:year')
-  @HttpCode(HttpStatus.NO_CONTENT)
-  deleteCalendar(@Param('year', ParseIntPipe) year: number) {
-    return this.service.calendar.remove(year);
   }
 
   @Post('calendar/:year/blocked-period')
@@ -222,5 +214,4 @@ export class LeavesController {
   ) {
     return this.service.calendar.removeBlockedPeriod(year, index);
   }
-
 }

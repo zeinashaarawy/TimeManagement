@@ -1,10 +1,18 @@
-import { IsString, IsOptional, IsBoolean, IsNumber, IsEnum, Min, ValidateNested } from 'class-validator';
+import {
+  IsString,
+  IsOptional,
+  IsBoolean,
+  IsNumber,
+  IsEnum,
+  Min,
+  ValidateNested,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 
 export enum AccrualMethod {
   MONTHLY = 'MONTHLY',
   ANNUAL = 'ANNUAL',
-  NONE = 'NONE'
+  NONE = 'NONE',
 }
 
 export class EligibilityDto {

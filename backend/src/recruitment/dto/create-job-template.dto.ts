@@ -23,4 +23,3 @@ export class CreateJobTemplateDto {
   @IsOptional()
   description?: string;
 }
-

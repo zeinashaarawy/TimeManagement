@@ -25,7 +25,8 @@ export class ReportingController {
     if (departmentId) filters.departmentId = new Types.ObjectId(departmentId);
     if (startDate) filters.startDate = new Date(startDate);
     if (endDate) filters.endDate = new Date(endDate);
-    if (includeExceptions) filters.includeExceptions = includeExceptions === 'true';
+    if (includeExceptions)
+      filters.includeExceptions = includeExceptions === 'true';
 
     return this.reportingService.getAttendanceReport(
       filters,
@@ -51,7 +52,10 @@ export class ReportingController {
     const csv = await this.reportingService.exportAttendanceReportCSV(filters);
 
     res.setHeader('Content-Type', 'text/csv');
-    res.setHeader('Content-Disposition', 'attachment; filename=attendance-report.csv');
+    res.setHeader(
+      'Content-Disposition',
+      'attachment; filename=attendance-report.csv',
+    );
     res.send(csv);
   }
 
@@ -98,7 +102,10 @@ export class ReportingController {
     const csv = await this.reportingService.exportOvertimeReportCSV(filters);
 
     res.setHeader('Content-Type', 'text/csv');
-    res.setHeader('Content-Disposition', 'attachment; filename=overtime-report.csv');
+    res.setHeader(
+      'Content-Disposition',
+      'attachment; filename=overtime-report.csv',
+    );
     res.send(csv);
   }
 
@@ -149,8 +156,10 @@ export class ReportingController {
     const csv = await this.reportingService.exportPenaltyReportCSV(filters);
 
     res.setHeader('Content-Type', 'text/csv');
-    res.setHeader('Content-Disposition', 'attachment; filename=penalty-report.csv');
+    res.setHeader(
+      'Content-Disposition',
+      'attachment; filename=penalty-report.csv',
+    );
     res.send(csv);
   }
 }
-

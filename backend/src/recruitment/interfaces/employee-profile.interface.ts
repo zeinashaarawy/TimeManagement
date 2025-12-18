@@ -20,4 +20,3 @@ export interface IEmployeeProfileService {
     },
   ): Promise<{ employeeId: string }>;
 }
-

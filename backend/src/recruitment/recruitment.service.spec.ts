@@ -127,13 +127,21 @@ describe('RecruitmentService', () => {
     }).compile();
 
     service = module.get<RecruitmentService>(RecruitmentService);
-    jobTemplateModel = module.get<Model<JobTemplate>>(getModelToken(JobTemplate.name));
-    jobRequisitionModel = module.get<Model<JobRequisition>>(getModelToken(JobRequisition.name));
-    applicationModel = module.get<Model<Application>>(getModelToken(Application.name));
+    jobTemplateModel = module.get<Model<JobTemplate>>(
+      getModelToken(JobTemplate.name),
+    );
+    jobRequisitionModel = module.get<Model<JobRequisition>>(
+      getModelToken(JobRequisition.name),
+    );
+    applicationModel = module.get<Model<Application>>(
+      getModelToken(Application.name),
+    );
     applicationHistoryModel = module.get<Model<ApplicationStatusHistory>>(
       getModelToken(ApplicationStatusHistory.name),
     );
-    interviewModel = module.get<Model<Interview>>(getModelToken(Interview.name));
+    interviewModel = module.get<Model<Interview>>(
+      getModelToken(Interview.name),
+    );
     assessmentResultModel = module.get<Model<AssessmentResult>>(
       getModelToken(AssessmentResult.name),
     );
@@ -165,7 +173,9 @@ describe('RecruitmentService', () => {
         save: jest.fn().mockResolvedValue({ _id: mockObjectId, ...dto }),
       };
 
-      jest.spyOn(jobTemplateModel, 'constructor' as any).mockReturnValue(mockTemplate);
+      jest
+        .spyOn(jobTemplateModel, 'constructor' as any)
+        .mockReturnValue(mockTemplate);
       (jobTemplateModel as any).mockImplementation(() => mockTemplate);
 
       const result = await service.createJobTemplate(dto);
@@ -181,7 +191,9 @@ describe('RecruitmentService', () => {
         skills: ['TypeScript'],
       };
 
-      await expect(service.createJobTemplate(dto)).rejects.toThrow(BadRequestException);
+      await expect(service.createJobTemplate(dto)).rejects.toThrow(
+        BadRequestException,
+      );
     });
 
     it('should throw BadRequestException if qualifications are empty (BR2)', async () => {
@@ -192,7 +204,9 @@ describe('RecruitmentService', () => {
         skills: ['TypeScript'],
       };
 
-      await expect(service.createJobTemplate(dto)).rejects.toThrow(BadRequestException);
+      await expect(service.createJobTemplate(dto)).rejects.toThrow(
+        BadRequestException,
+      );
     });
 
     it('should throw BadRequestException if skills are empty (BR2)', async () => {
@@ -203,7 +217,9 @@ describe('RecruitmentService', () => {
         skills: [],
       };
 
-      await expect(service.createJobTemplate(dto)).rejects.toThrow(BadRequestException);
+      await expect(service.createJobTemplate(dto)).rejects.toThrow(
+        BadRequestException,
+      );
     });
   });
 
@@ -224,7 +240,9 @@ describe('RecruitmentService', () => {
       const result = await service.findJobTemplateById(mockObjectId.toString());
 
       expect(result).toEqual(mockTemplate);
-      expect(jobTemplateModel.findById).toHaveBeenCalledWith(mockObjectId.toString());
+      expect(jobTemplateModel.findById).toHaveBeenCalledWith(
+        mockObjectId.toString(),
+      );
     });
 
     it('should throw NotFoundException if template not found', async () => {
@@ -232,7 +250,9 @@ describe('RecruitmentService', () => {
         exec: jest.fn().mockResolvedValue(null),
       } as any);
 
-      await expect(service.findJobTemplateById('invalid-id')).rejects.toThrow(NotFoundException);
+      await expect(service.findJobTemplateById('invalid-id')).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 
@@ -258,7 +278,9 @@ describe('RecruitmentService', () => {
       };
 
       jest.spyOn(service, 'findJobTemplateById').mockResolvedValue({} as any);
-      jest.spyOn(jobRequisitionModel, 'constructor' as any).mockReturnValue(mockRequisition);
+      jest
+        .spyOn(jobRequisitionModel, 'constructor' as any)
+        .mockReturnValue(mockRequisition);
       (jobRequisitionModel as any).mockImplementation(() => mockRequisition);
 
       const result = await service.createJobRequisition(dto);
@@ -273,7 +295,9 @@ describe('RecruitmentService', () => {
         hiringManagerId: mockObjectId.toString(),
       };
 
-      await expect(service.createJobRequisition(dto)).rejects.toThrow(BadRequestException);
+      await expect(service.createJobRequisition(dto)).rejects.toThrow(
+        BadRequestException,
+      );
     });
   });
 
@@ -289,7 +313,9 @@ describe('RecruitmentService', () => {
         exec: jest.fn().mockResolvedValue(mockRequisition),
       } as any);
 
-      const result = await service.publishJobRequisition(mockObjectId.toString());
+      const result = await service.publishJobRequisition(
+        mockObjectId.toString(),
+      );
 
       expect(mockRequisition.publishStatus).toBe('published');
       expect(mockRequisition.save).toHaveBeenCalled();
@@ -305,9 +331,9 @@ describe('RecruitmentService', () => {
         exec: jest.fn().mockResolvedValue(mockRequisition),
       } as any);
 
-      await expect(service.publishJobRequisition(mockObjectId.toString())).rejects.toThrow(
-        BadRequestException,
-      );
+      await expect(
+        service.publishJobRequisition(mockObjectId.toString()),
+      ).rejects.toThrow(BadRequestException);
     });
   });
 
@@ -333,14 +359,20 @@ describe('RecruitmentService', () => {
         save: jest.fn().mockResolvedValue({ _id: mockObjectId }),
       };
 
-      jest.spyOn(service, 'findJobRequisitionById').mockResolvedValue({} as any);
-      jest.spyOn(applicationModel, 'constructor' as any).mockReturnValue(mockApplication);
+      jest
+        .spyOn(service, 'findJobRequisitionById')
+        .mockResolvedValue({} as any);
+      jest
+        .spyOn(applicationModel, 'constructor' as any)
+        .mockReturnValue(mockApplication);
       (applicationModel as any).mockImplementation(() => mockApplication);
 
       const mockHistory = {
         save: jest.fn().mockResolvedValue({}),
       };
-      jest.spyOn(applicationHistoryModel, 'constructor' as any).mockReturnValue(mockHistory);
+      jest
+        .spyOn(applicationHistoryModel, 'constructor' as any)
+        .mockReturnValue(mockHistory);
       (applicationHistoryModel as any).mockImplementation(() => mockHistory);
 
       const result = await service.createApplication(dto);
@@ -356,7 +388,9 @@ describe('RecruitmentService', () => {
         consentGiven: false,
       };
 
-      await expect(service.createApplication(dto)).rejects.toThrow(BadRequestException);
+      await expect(service.createApplication(dto)).rejects.toThrow(
+        BadRequestException,
+      );
     });
 
     it('should create referral if isReferral flag is true (BR14, BR25)', async () => {
@@ -381,16 +415,24 @@ describe('RecruitmentService', () => {
         save: jest.fn().mockResolvedValue({}),
       };
 
-      jest.spyOn(service, 'findJobRequisitionById').mockResolvedValue({} as any);
-      jest.spyOn(applicationModel, 'constructor' as any).mockReturnValue(mockApplication);
+      jest
+        .spyOn(service, 'findJobRequisitionById')
+        .mockResolvedValue({} as any);
+      jest
+        .spyOn(applicationModel, 'constructor' as any)
+        .mockReturnValue(mockApplication);
       (applicationModel as any).mockImplementation(() => mockApplication);
-      jest.spyOn(referralModel, 'constructor' as any).mockReturnValue(mockReferral);
+      jest
+        .spyOn(referralModel, 'constructor' as any)
+        .mockReturnValue(mockReferral);
       (referralModel as any).mockImplementation(() => mockReferral);
 
       const mockHistory = {
         save: jest.fn().mockResolvedValue({}),
       };
-      jest.spyOn(applicationHistoryModel, 'constructor' as any).mockReturnValue(mockHistory);
+      jest
+        .spyOn(applicationHistoryModel, 'constructor' as any)
+        .mockReturnValue(mockHistory);
       (applicationHistoryModel as any).mockImplementation(() => mockHistory);
 
       await service.createApplication(dto);
@@ -415,7 +457,9 @@ describe('RecruitmentService', () => {
       jest.spyOn(applicationModel, 'findById').mockReturnValue({
         exec: jest.fn().mockResolvedValue(mockApplication),
       } as any);
-      jest.spyOn(applicationHistoryModel, 'constructor' as any).mockReturnValue(mockHistory);
+      jest
+        .spyOn(applicationHistoryModel, 'constructor' as any)
+        .mockReturnValue(mockHistory);
       (applicationHistoryModel as any).mockImplementation(() => mockHistory);
 
       const dto = {
@@ -458,7 +502,9 @@ describe('RecruitmentService', () => {
       };
 
       jest.spyOn(service, 'findApplicationById').mockResolvedValue({} as any);
-      jest.spyOn(interviewModel, 'constructor' as any).mockReturnValue(mockInterview);
+      jest
+        .spyOn(interviewModel, 'constructor' as any)
+        .mockReturnValue(mockInterview);
       (interviewModel as any).mockImplementation(() => mockInterview);
 
       const result = await service.scheduleInterview(dto);
@@ -475,7 +521,9 @@ describe('RecruitmentService', () => {
         panel: [],
       };
 
-      await expect(service.scheduleInterview(dto)).rejects.toThrow(BadRequestException);
+      await expect(service.scheduleInterview(dto)).rejects.toThrow(
+        BadRequestException,
+      );
     });
   });
 
@@ -507,7 +555,9 @@ describe('RecruitmentService', () => {
       jest.spyOn(interviewModel, 'findById').mockReturnValue({
         exec: jest.fn().mockResolvedValue(mockInterview),
       } as any);
-      jest.spyOn(assessmentResultModel, 'constructor' as any).mockReturnValue(mockAssessment);
+      jest
+        .spyOn(assessmentResultModel, 'constructor' as any)
+        .mockReturnValue(mockAssessment);
       (assessmentResultModel as any).mockImplementation(() => mockAssessment);
       jest.spyOn(assessmentResultModel, 'find').mockReturnValue({
         exec: jest.fn().mockResolvedValue([mockAssessment]),
@@ -537,7 +587,9 @@ describe('RecruitmentService', () => {
         exec: jest.fn().mockResolvedValue(mockInterview),
       } as any);
 
-      await expect(service.submitInterviewFeedback(dto)).rejects.toThrow(BadRequestException);
+      await expect(service.submitInterviewFeedback(dto)).rejects.toThrow(
+        BadRequestException,
+      );
     });
   });
 
@@ -569,7 +621,9 @@ describe('RecruitmentService', () => {
         save: jest.fn().mockResolvedValue({ _id: mockObjectId }),
       };
 
-      jest.spyOn(service, 'findApplicationById').mockResolvedValue(mockApplication as any);
+      jest
+        .spyOn(service, 'findApplicationById')
+        .mockResolvedValue(mockApplication as any);
       jest.spyOn(offerModel, 'constructor' as any).mockReturnValue(mockOffer);
       (offerModel as any).mockImplementation(() => mockOffer);
 
@@ -636,7 +690,9 @@ describe('RecruitmentService', () => {
       const mockHistory = {
         save: jest.fn().mockResolvedValue({}),
       };
-      jest.spyOn(applicationHistoryModel, 'constructor' as any).mockReturnValue(mockHistory);
+      jest
+        .spyOn(applicationHistoryModel, 'constructor' as any)
+        .mockReturnValue(mockHistory);
       (applicationHistoryModel as any).mockImplementation(() => mockHistory);
 
       const result = await service.respondToOffer(mockObjectId.toString(), dto);

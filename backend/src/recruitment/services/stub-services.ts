@@ -19,7 +19,9 @@ export class StubOnboardingService implements IOnboardingService {
       startDate?: Date;
     },
   ): Promise<{ onboardingId: string; tasks: any[] }> {
-    console.warn('StubOnboardingService.triggerOnboarding called - not implemented');
+    console.warn(
+      'StubOnboardingService.triggerOnboarding called - not implemented',
+    );
     return {
       onboardingId: 'stub-onboarding-id',
       tasks: [],
@@ -39,21 +41,30 @@ export class StubEmployeeProfileService implements IEmployeeProfileService {
       startDate: Date;
     },
   ): Promise<{ employeeId: string }> {
-    console.warn('StubEmployeeProfileService.createEmployeeFromCandidate called - not implemented');
+    console.warn(
+      'StubEmployeeProfileService.createEmployeeFromCandidate called - not implemented',
+    );
     return { employeeId: 'stub-employee-id' };
   }
 }
 
 @Injectable()
-export class StubOrganizationStructureService implements IOrganizationStructureService {
+export class StubOrganizationStructureService
+  implements IOrganizationStructureService
+{
   async validateDepartment(departmentId: string): Promise<boolean> {
-    console.warn('StubOrganizationStructureService.validateDepartment called - not implemented');
+    console.warn(
+      'StubOrganizationStructureService.validateDepartment called - not implemented',
+    );
     return true; // Stub always returns true
   }
 
-  async getDepartment(departmentId: string): Promise<{ id: string; name: string; managerId?: string } | null> {
-    console.warn('StubOrganizationStructureService.getDepartment called - not implemented');
+  async getDepartment(
+    departmentId: string,
+  ): Promise<{ id: string; name: string; managerId?: string } | null> {
+    console.warn(
+      'StubOrganizationStructureService.getDepartment called - not implemented',
+    );
     return { id: departmentId, name: 'Stub Department' };
   }
 }
-
