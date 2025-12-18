@@ -48,7 +48,7 @@ interface Policy {
   effectiveTo?: string;
 }
 
-export default function Policies() {
+export default function Policies({ asTab = false }: { asTab?: boolean } = {}) {
   const [policies, setPolicies] = useState<Policy[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -417,44 +417,46 @@ export default function Policies() {
     setShowForm(false);
   };
 
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-blue-950 to-slate-900 text-white px-6 py-12">
+  const content = (
+    <div className={asTab ? "" : "min-h-screen bg-gradient-to-br from-slate-950 via-blue-950 to-slate-900 text-white px-6 py-12"}>
       <div className="max-w-6xl mx-auto">
         {/* Header */}
-        <div className="mb-8">
-          <Link href="/subsystems/time-management">
-            <button className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors mb-4">
-              <ArrowLeft className="w-5 h-5" />
-              <span>Back to Time Management</span>
-            </button>
-          </Link>
-          <div className="flex items-start justify-between mb-4">
-            <div>
-              <h1 className="text-4xl lg:text-5xl font-light mb-2">Time Management Policies</h1>
-              <p className="text-gray-400">Configure time policies and rules for your organization</p>
-            </div>
-            {/* Role Selector for Testing/Demo */}
-            <div className="bg-white/5 border border-white/10 rounded-lg p-3">
-              <label className="block text-xs text-gray-400 mb-1">Current Role (Testing)</label>
-              <select
-                value={userRole || ''}
-                onChange={(e) => handleRoleChange(e.target.value as UserRole)}
-                className="px-3 py-1.5 rounded bg-white/5 border border-white/10 text-white text-sm appearance-none cursor-pointer"
-                style={{
-                  backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23ffffff' d='M6 9L1 4h10z'/%3E%3C/svg%3E")`,
-                  backgroundRepeat: 'no-repeat',
-                  backgroundPosition: 'right 0.5rem center',
-                  paddingRight: '1.75rem'
-                }}
-              >
-                <option value="department employee" className="bg-slate-800 text-white">Employee</option>
-                <option value="department head" className="bg-slate-800 text-white">Manager</option>
-                <option value="HR Manager" className="bg-slate-800 text-white">HR Manager</option>
-                <option value="System Admin" className="bg-slate-800 text-white">System Admin</option>
-              </select>
+        {!asTab && (
+          <div className="mb-8">
+            <Link href="/subsystems/time-management">
+              <button className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors mb-4">
+                <ArrowLeft className="w-5 h-5" />
+                <span>Back to Time Management</span>
+              </button>
+            </Link>
+            <div className="flex items-start justify-between mb-4">
+              <div>
+                <h1 className="text-4xl lg:text-5xl font-light mb-2">Time Management Policies</h1>
+                <p className="text-gray-400">Configure time policies and rules for your organization</p>
+              </div>
+              {/* Role Selector for Testing/Demo */}
+              <div className="bg-white/5 border border-white/10 rounded-lg p-3">
+                <label className="block text-xs text-gray-400 mb-1">Current Role (Testing)</label>
+                <select
+                  value={userRole || ''}
+                  onChange={(e) => handleRoleChange(e.target.value as UserRole)}
+                  className="px-3 py-1.5 rounded bg-white/5 border border-white/10 text-white text-sm appearance-none cursor-pointer"
+                  style={{
+                    backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23ffffff' d='M6 9L1 4h10z'/%3E%3C/svg%3E")`,
+                    backgroundRepeat: 'no-repeat',
+                    backgroundPosition: 'right 0.5rem center',
+                    paddingRight: '1.75rem'
+                  }}
+                >
+                  <option value="department employee" className="bg-slate-800 text-white">Employee</option>
+                  <option value="department head" className="bg-slate-800 text-white">Manager</option>
+                  <option value="HR Manager" className="bg-slate-800 text-white">HR Manager</option>
+                  <option value="System Admin" className="bg-slate-800 text-white">System Admin</option>
+                </select>
+              </div>
             </div>
           </div>
-        </div>
+        )}
 
         {/* Access Denied Message */}
         {!permissions.canView && (
@@ -1148,4 +1150,6 @@ export default function Policies() {
       </div>
     </div>
   );
+
+  return content;
 }

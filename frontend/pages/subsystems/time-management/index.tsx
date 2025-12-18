@@ -1,150 +1,187 @@
 import Link from "next/link";
-import { Settings, FileText, DollarSign, ArrowLeft } from "lucide-react";
+import { Settings, FileText, DollarSign, ArrowLeft, Clock, AlertCircle } from "lucide-react";
 import { getCurrentUserRole, type UserRole } from "../../../utils/auth";
 import { useState, useEffect } from "react";
+import dynamic from "next/dynamic";
+
+// Import the existing page components - they will be rendered as tab content
+const PoliciesPage = dynamic(() => import("./policies"), { ssr: false });
+const ReportsPage = dynamic(() => import("./reports"), { ssr: false });
+const PayrollPage = dynamic(() => import("./payroll-sync"), { ssr: false });
+const AttendancePage = dynamic(() => import("./attendance"), { ssr: false });
+const ExceptionsPage = dynamic(() => import("./exceptions"), { ssr: false });
+
+type MainTabType = "attendance" | "exceptions" | "policies" | "reports" | "payroll";
 
 export default function TimeManagement() {
   const [userRole, setUserRole] = useState<UserRole | null>(null);
+  const [activeTab, setActiveTab] = useState<MainTabType>("attendance");
 
   useEffect(() => {
     const role = getCurrentUserRole();
     setUserRole(role);
+    
+    // Set default tab based on available access
+    if (canAccessAttendance()) {
+      setActiveTab("attendance");
+    } else if (role === 'HR Manager' || role === 'System Admin') {
+      setActiveTab("policies");
+    } else if (role === 'Payroll Specialist' || role === 'Payroll Manager') {
+      setActiveTab("reports");
+    }
   }, []);
 
-  // Permission checks based on role visibility table
+  // Permission checks
+  const canAccessAttendance = (): boolean => {
+    if (!userRole) return false;
+    // All employees can access attendance dashboard
+    return true;
+  };
+
+  const canAccessExceptions = (): boolean => {
+    if (!userRole) return false;
+    // Only managers can access exception management
+    return userRole === 'HR Manager' || userRole === 'System Admin' || userRole === 'HR Admin';
+  };
+
   const canAccessReports = (): boolean => {
     if (!userRole) return false;
-    // HR Manager: Full access, System Admin: Optional/Read-only
-    return userRole === 'HR Manager' || userRole === 'System Admin';
+    return userRole === 'HR Manager' || userRole === 'System Admin' || 
+           userRole === 'HR Admin' || userRole === 'Payroll Specialist' || 
+           userRole === 'Payroll Manager';
   };
 
   const canAccessPolicies = (): boolean => {
     if (!userRole) return false;
-    // HR Manager: Full access, System Admin: Optional
     return userRole === 'HR Manager' || userRole === 'System Admin';
   };
 
   const canAccessPayrollIntegration = (): boolean => {
     if (!userRole) return false;
-    // HR Manager: Full access, System Admin: Optional
-    return userRole === 'HR Manager' || userRole === 'System Admin';
+    return userRole === 'HR Manager' || userRole === 'System Admin' ||
+           userRole === 'Payroll Specialist' || userRole === 'Payroll Manager';
   };
 
+  const tabs = [
+    {
+      id: "attendance" as MainTabType,
+      label: "Attendance",
+      icon: Clock,
+      canAccess: canAccessAttendance(),
+      color: "#60a5fa",
+    },
+    {
+      id: "exceptions" as MainTabType,
+      label: "Exceptions",
+      icon: AlertCircle,
+      canAccess: canAccessExceptions(),
+      color: "#f59e0b",
+    },
+    {
+      id: "policies" as MainTabType,
+      label: "Policies",
+      icon: Settings,
+      canAccess: canAccessPolicies(),
+      color: "#8b5cf6",
+    },
+    {
+      id: "reports" as MainTabType,
+      label: "Reports & Analytics",
+      icon: FileText,
+      canAccess: canAccessReports(),
+      color: "#a78bfa",
+    },
+    {
+      id: "payroll" as MainTabType,
+      label: "Payroll Integration",
+      icon: DollarSign,
+      canAccess: canAccessPayrollIntegration(),
+      color: "#4ade80",
+    },
+  ].filter(tab => tab.canAccess);
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-slate-950 via-blue-950 to-slate-900 text-white px-6 py-12">
-      {/* Back Navigation */}
-      <div className="w-full max-w-4xl mb-8">
-        <Link href="/">
-          <button className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors">
-            <ArrowLeft className="w-5 h-5" />
-            <span>Back to Home</span>
-          </button>
-        </Link>
-      </div>
-
-      {/* Main Title */}
-      <h1 className="text-4xl lg:text-6xl font-light mb-4 text-center">
-        Time Management Subsystem
-      </h1>
-      <p className="text-gray-400 mb-4 text-center max-w-2xl">
-        Phase 3 & 5: Policy Configuration, Reports & Analytics, and Payroll Integration
-      </p>
-      
-      {/* Debug: Show current role and access info (for testing) */}
-      {userRole && (
-        <div className="mb-8 text-center space-y-2">
-          <div>
-            <span className="text-xs text-gray-500 bg-white/5 px-3 py-1 rounded-full border border-white/10">
-              Current Role: <span className="text-blue-400 font-medium">{userRole}</span>
-            </span>
+    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-blue-950 to-slate-900 text-white">
+      <div className="px-6 py-12">
+        <div className="max-w-7xl mx-auto">
+          {/* Header */}
+          <div className="mb-8">
+            <Link href="/">
+              <button className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors mb-4">
+                <ArrowLeft className="w-5 h-5" />
+                <span>Back to Home</span>
+              </button>
+            </Link>
+            <div className="flex items-center gap-4 mb-2">
+              <div className="p-3 bg-gradient-to-br from-teal-500 to-emerald-500 rounded-2xl">
+                <FileText className="w-8 h-8 text-white" />
+              </div>
+              <div>
+                <h1 className="text-4xl lg:text-5xl font-light">Time Management</h1>
+                <p className="text-gray-400 mt-1">
+                  Policy Configuration, Reports & Analytics, and Payroll Integration
+                </p>
+              </div>
+            </div>
           </div>
-          <p className="text-xs text-blue-400/70 max-w-md mx-auto">
-            Assigned Phases: <strong>Phase 3 (Policy Configuration)</strong> and <strong>Phase 5 (Reports & Payroll)</strong>
-          </p>
+
+          {/* Tabs Navigation */}
+          {tabs.length > 0 && (
+            <div className="flex gap-2 mb-6 border-b border-white/10 overflow-x-auto">
+              {tabs.map((tab) => {
+                const Icon = tab.icon;
+                const isActive = activeTab === tab.id;
+                return (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id)}
+                    className={`flex items-center gap-2 px-6 py-3 border-b-2 transition-colors whitespace-nowrap ${
+                      isActive
+                        ? ""
+                        : "border-transparent text-gray-400 hover:text-white"
+                    }`}
+                    style={
+                      isActive
+                        ? {
+                            borderBottomColor: tab.color,
+                            color: tab.color,
+                          }
+                        : {}
+                    }
+                  >
+                    <Icon className="w-4 h-4" />
+                    <span>{tab.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Tab Content */}
+          <div className="bg-white/5 border border-white/10 backdrop-blur-xl rounded-3xl p-8 min-h-[600px] overflow-hidden">
+            {activeTab === "attendance" && canAccessAttendance() && (
+              <AttendancePage asTab={true} />
+            )}
+            {activeTab === "exceptions" && canAccessExceptions() && (
+              <ExceptionsPage asTab={true} />
+            )}
+            {activeTab === "policies" && canAccessPolicies() && (
+              <PoliciesPage asTab={true} />
+            )}
+            {activeTab === "reports" && canAccessReports() && (
+              <ReportsPage asTab={true} />
+            )}
+            {activeTab === "payroll" && canAccessPayrollIntegration() && (
+              <PayrollPage asTab={true} />
+            )}
+            
+            {tabs.length === 0 && (
+              <div className="text-center py-12">
+                <p className="text-gray-400">You do not have access to any Time Management features.</p>
+              </div>
+            )}
+          </div>
         </div>
-      )}
-      
-      {/* Role Selector for Testing (Development Only) */}
-      {process.env.NODE_ENV === 'development' && (
-        <div className="mb-6 text-center">
-          <label className="text-xs text-gray-400 mb-2 block">Test with different role:</label>
-          <select
-            value={userRole || ''}
-            onChange={(e) => {
-              const newRole = e.target.value as UserRole;
-              setUserRole(newRole);
-              localStorage.setItem('userRole', newRole);
-              window.location.reload();
-            }}
-            className="px-3 py-1 rounded-lg bg-white/5 border border-white/10 text-white text-sm focus:outline-none focus:border-blue-500/50"
-          >
-            <option value="department employee">Employee</option>
-            <option value="department head">Manager</option>
-            <option value="HR Manager">HR Manager</option>
-            <option value="System Admin">System Admin</option>
-          </select>
-        </div>
-      )}
-
-      {/* Navigation Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 w-full max-w-5xl">
-        {/* Policies - Only HR Manager and System Admin */}
-        {canAccessPolicies() && (
-          <Link href="/subsystems/time-management/policies">
-            <div className="group relative cursor-pointer">
-              <div className="absolute inset-0 bg-gradient-to-br from-blue-500 to-cyan-500 blur-xl rounded-3xl opacity-0 group-hover:opacity-30 transition-all" />
-              <div className="relative bg-white/5 border border-white/10 backdrop-blur-xl p-6 rounded-3xl hover:border-white/20 transition-all hover:-translate-y-2">
-                <div className="relative mb-4">
-                  <div className="absolute inset-0 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-2xl blur-md opacity-50" />
-                  <div className="relative bg-gradient-to-br from-blue-500 to-cyan-500 p-3 rounded-2xl">
-                    <Settings className="w-8 h-8 text-white" />
-                  </div>
-                </div>
-                <h3 className="text-xl mb-2 text-white font-medium">Policy Configuration</h3>
-                <p className="text-gray-400 text-sm">Configure time policies and rules</p>
-              </div>
-            </div>
-          </Link>
-        )}
-
-        {/* Reports - Only visible to HR Manager and System Admin */}
-        {canAccessReports() && (
-          <Link href="/subsystems/time-management/reports">
-            <div className="group relative cursor-pointer">
-              <div className="absolute inset-0 bg-gradient-to-br from-purple-500 to-pink-500 blur-xl rounded-3xl opacity-0 group-hover:opacity-30 transition-all" />
-              <div className="relative bg-white/5 border border-white/10 backdrop-blur-xl p-6 rounded-3xl hover:border-white/20 transition-all hover:-translate-y-2">
-                <div className="relative mb-4">
-                  <div className="absolute inset-0 bg-gradient-to-br from-purple-500 to-pink-500 rounded-2xl blur-md opacity-50" />
-                  <div className="relative bg-gradient-to-br from-purple-500 to-pink-500 p-3 rounded-2xl">
-                    <FileText className="w-8 h-8 text-white" />
-                  </div>
-                </div>
-                <h3 className="text-xl mb-2 text-white font-medium">Reports & Analytics</h3>
-                <p className="text-gray-400 text-sm">Generate and export time management reports</p>
-              </div>
-            </div>
-          </Link>
-        )}
-
-        {/* Payroll Integration - Only HR Manager and System Admin */}
-        {canAccessPayrollIntegration() && (
-          <Link href="/subsystems/time-management/payroll-sync">
-            <div className="group relative cursor-pointer">
-              <div className="absolute inset-0 bg-gradient-to-br from-green-500 to-emerald-500 blur-xl rounded-3xl opacity-0 group-hover:opacity-30 transition-all" />
-              <div className="relative bg-white/5 border border-white/10 backdrop-blur-xl p-6 rounded-3xl hover:border-white/20 transition-all hover:-translate-y-2">
-                <div className="relative mb-4">
-                  <div className="absolute inset-0 bg-gradient-to-br from-green-500 to-emerald-500 rounded-2xl blur-md opacity-50" />
-                  <div className="relative bg-gradient-to-br from-green-500 to-emerald-500 p-3 rounded-2xl">
-                    <DollarSign className="w-8 h-8 text-white" />
-                  </div>
-                </div>
-                <h3 className="text-xl mb-2 text-white font-medium">Payroll Integration</h3>
-                <p className="text-gray-400 text-sm">Sync time data with payroll system</p>
-              </div>
-            </div>
-          </Link>
-        )}
       </div>
     </div>
   );

@@ -1,8 +1,8 @@
 import axios from "axios";
 
 // Base URL - automatically detects hostname when running in browser
-// Backend runs on port 4000, frontend on port 3000
-// This ensures API calls work when accessing via network IP (e.g., 172.20.10.3:3000)
+// Backend runs on port 3000 (or from env PORT), frontend on port 3001
+// This ensures API calls work when accessing via network IP (e.g., 172.20.10.3:3001)
 // You can override by setting NEXT_PUBLIC_API_URL in frontend/.env.local
 const getBaseURL = (): string => {
   // If NEXT_PUBLIC_API_URL is set, use it (highest priority)
@@ -10,52 +10,273 @@ const getBaseURL = (): string => {
     return process.env.NEXT_PUBLIC_API_URL;
   }
   
-  // If running in browser, use current hostname but with backend port (4000)
+  // If running in browser, use current hostname but with backend port (3000 or from env)
   // This works for both localhost and network IPs (e.g., 172.20.10.3)
   if (typeof window !== 'undefined') {
     const hostname = window.location.hostname;
-    return `http://${hostname}:4000`;
+    // Backend port defaults to 3000, but can be overridden via env
+    const backendPort = process.env.NEXT_PUBLIC_BACKEND_PORT || '3000';
+    return `http://${hostname}:${backendPort}`;
   }
   
   // Server-side fallback (SSR)
-  return "http://localhost:4000";
+  return process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
 };
 
 const BASE_URL = getBaseURL();
 
+// Log BASE_URL in development for debugging
+if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
+  console.log('[API] BASE_URL:', BASE_URL);
+  console.log('[API] Frontend URL:', window.location.origin);
+  console.log('[API] Backend Port:', process.env.NEXT_PUBLIC_BACKEND_PORT || '3000');
+}
+
 // ==========================================
 // API INSTANCES - Matching Backend Controllers
 // ==========================================
+
+// Request interceptor to serialize Date objects to ISO strings
+const serializeDates = (data: any): any => {
+  if (data === null || data === undefined) return data;
+  if (data instanceof Date) return data.toISOString();
+  if (Array.isArray(data)) return data.map(serializeDates);
+  if (typeof data === 'object') {
+    const serialized: any = {};
+    for (const key in data) {
+      if (data.hasOwnProperty(key)) {
+        serialized[key] = serializeDates(data[key]);
+      }
+    }
+    return serialized;
+  }
+  return data;
+};
+
+// Response interceptor for error handling
+const handleError = (error: any) => {
+  if (error.response) {
+    // Server responded with error status
+    let message = 'An error occurred';
+    const status = error.response.status;
+    
+    // Check if we got an HTML response (likely a 404 from Next.js frontend)
+    const contentType = error.response.headers?.['content-type'] || '';
+    if (contentType.includes('text/html') || (typeof error.response.data === 'string' && error.response.data.includes('<!DOCTYPE html>'))) {
+      const requestUrl = error.config?.url || error.config?.baseURL || 'unknown';
+      throw new Error(
+        `API endpoint not found (404). The request was sent to: ${requestUrl}. ` +
+        `This usually means:\n` +
+        `1. The backend server is not running (check if it's running on port ${process.env.NEXT_PUBLIC_BACKEND_PORT || '3000'})\n` +
+        `2. The API URL is incorrect (current BASE_URL: ${BASE_URL})\n` +
+        `3. The endpoint doesn't exist on the backend`
+      );
+    }
+    
+    try {
+      // Try to extract message from response data
+      if (error.response.data) {
+        if (typeof error.response.data === 'string') {
+          // If response is a string, try to parse it as JSON
+          try {
+            const parsed = JSON.parse(error.response.data);
+            message = parsed.message || parsed.error || message;
+          } catch {
+            // If parsing fails, use the string as message (but truncate if it's HTML)
+            if (error.response.data.includes('<!DOCTYPE html>')) {
+              message = 'Received HTML response instead of JSON. Check if backend is running.';
+            } else {
+              message = error.response.data.substring(0, 200) || message;
+            }
+          }
+        } else if (typeof error.response.data === 'object') {
+          message = error.response.data.message || error.response.data.error || message;
+        }
+      }
+    } catch (e) {
+      // If anything fails, use default message
+      message = error.message || 'An error occurred';
+    }
+    
+    throw new Error(`${message} (Status: ${status})`);
+  } else if (error.request) {
+    // Request made but no response
+    throw new Error(
+      `Network error: No response from server. ` +
+      `Please check if the backend is running on ${BASE_URL}. ` +
+      `Make sure the backend server is started with 'npm run start:dev' in the backend directory.`
+    );
+  } else {
+    // Something else happened
+    throw new Error(error.message || 'An unexpected error occurred');
+  }
+};
 
 // Time Management API - @Controller('time-management')
 const TimeManagementAPI = axios.create({
   baseURL: `${BASE_URL}/time-management`,
 });
 
+TimeManagementAPI.interceptors.request.use((config) => {
+  if (config.data) {
+    config.data = serializeDates(config.data);
+  }
+  return config;
+});
+
+TimeManagementAPI.interceptors.response.use(
+  (response) => {
+    // Handle empty responses
+    if (!response.data && response.status === 200) {
+      return { ...response, data: null };
+    }
+    // Ensure response.data exists
+    if (response.data === '' || response.data === undefined) {
+      return { ...response, data: null };
+    }
+    return response;
+  },
+  (error) => {
+    handleError(error);
+    return Promise.reject(error);
+  }
+);
+
 // Attendance API - @Controller('attendance')
 const AttendanceAPI = axios.create({
   baseURL: `${BASE_URL}/attendance`,
 });
+
+AttendanceAPI.interceptors.request.use((config) => {
+  if (config.data) {
+    config.data = serializeDates(config.data);
+  }
+  return config;
+});
+
+AttendanceAPI.interceptors.response.use(
+  (response) => {
+    // Handle empty responses
+    if (!response.data && response.status === 200) {
+      return { ...response, data: null };
+    }
+    // Ensure response.data exists
+    if (response.data === '' || response.data === undefined) {
+      return { ...response, data: null };
+    }
+    return response;
+  },
+  (error) => {
+    handleError(error);
+    return Promise.reject(error);
+  }
+);
 
 // Policies API - @Controller('policies')
 const PoliciesAPI = axios.create({
   baseURL: `${BASE_URL}/policies`,
 });
 
+PoliciesAPI.interceptors.response.use(
+  (response) => {
+    // Handle empty responses
+    if (!response.data && response.status === 200) {
+      return { ...response, data: null };
+    }
+    // Ensure response.data exists
+    if (response.data === '' || response.data === undefined) {
+      return { ...response, data: null };
+    }
+    return response;
+  },
+  (error) => {
+    handleError(error);
+    return Promise.reject(error);
+  }
+);
+
 // Reports API - @Controller('reports')
 const ReportsAPI = axios.create({
   baseURL: `${BASE_URL}/reports`,
 });
+
+ReportsAPI.interceptors.response.use(
+  (response) => {
+    // Handle empty responses
+    if (!response.data && response.status === 200) {
+      return { ...response, data: null };
+    }
+    // Ensure response.data exists
+    if (response.data === '' || response.data === undefined) {
+      return { ...response, data: null };
+    }
+    return response;
+  },
+  (error) => {
+    handleError(error);
+    return Promise.reject(error);
+  }
+);
 
 // Payroll API - @Controller('payroll')
 const PayrollAPI = axios.create({
   baseURL: `${BASE_URL}/payroll`,
 });
 
+PayrollAPI.interceptors.request.use((config) => {
+  if (config.data) {
+    config.data = serializeDates(config.data);
+  }
+  return config;
+});
+
+PayrollAPI.interceptors.response.use(
+  (response) => {
+    // Handle empty responses
+    if (!response.data && response.status === 200) {
+      return { ...response, data: null };
+    }
+    // Ensure response.data exists
+    if (response.data === '' || response.data === undefined) {
+      return { ...response, data: null };
+    }
+    return response;
+  },
+  (error) => {
+    handleError(error);
+    return Promise.reject(error);
+  }
+);
+
 // Leaves API - @Controller() (for calendar/holiday management)
 const LeavesAPI = axios.create({
   baseURL: `${BASE_URL}`,
 });
+
+LeavesAPI.interceptors.request.use((config) => {
+  if (config.data) {
+    config.data = serializeDates(config.data);
+  }
+  return config;
+});
+
+LeavesAPI.interceptors.response.use(
+  (response) => {
+    // Handle empty responses
+    if (!response.data && response.status === 200) {
+      return { ...response, data: null };
+    }
+    // Ensure response.data exists
+    if (response.data === '' || response.data === undefined) {
+      return { ...response, data: null };
+    }
+    return response;
+  },
+  (error) => {
+    handleError(error);
+    return Promise.reject(error);
+  }
+);
 
 // ==========================================
 // TIME MANAGEMENT ENDPOINTS

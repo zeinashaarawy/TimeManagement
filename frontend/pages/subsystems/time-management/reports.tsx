@@ -26,7 +26,7 @@ import { getCurrentUserRole, type UserRole } from "../../../utils/auth";
 
 type ReportType = "attendance" | "overtime" | "penalties";
 
-export default function Reports() {
+export default function Reports({ asTab = false }: { asTab?: boolean } = {}) {
   const [reportType, setReportType] = useState<ReportType>("attendance");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -173,20 +173,22 @@ export default function Reports() {
     return `${hours}h ${mins}m`;
   };
 
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-blue-950 to-slate-900 text-white px-6 py-12">
+  const content = (
+    <div className={asTab ? "" : "min-h-screen bg-gradient-to-br from-slate-950 via-blue-950 to-slate-900 text-white px-6 py-12"}>
       <div className="max-w-7xl mx-auto">
         {/* Header */}
-        <div className="mb-8">
-          <Link href="/subsystems/time-management">
-            <button className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors mb-4">
-              <ArrowLeft className="w-5 h-5" />
-              <span>Back to Time Management</span>
-            </button>
-          </Link>
-          <h1 className="text-4xl lg:text-5xl font-light mb-2">Time Management Reports</h1>
-          <p className="text-gray-400">Generate and export time management reports</p>
-        </div>
+        {!asTab && (
+          <div className="mb-8">
+            <Link href="/subsystems/time-management">
+              <button className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors mb-4">
+                <ArrowLeft className="w-5 h-5" />
+                <span>Back to Time Management</span>
+              </button>
+            </Link>
+            <h1 className="text-4xl lg:text-5xl font-light mb-2">Time Management Reports</h1>
+            <p className="text-gray-400">Generate and export time management reports</p>
+          </div>
+        )}
 
         {/* Access Denied Message */}
         {!canAccessReports() && (
@@ -547,4 +549,6 @@ export default function Reports() {
       </div>
     </div>
   );
+
+  return content;
 }
