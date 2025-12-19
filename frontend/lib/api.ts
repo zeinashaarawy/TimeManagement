@@ -121,4 +121,3 @@ export const schedulingRulesApi = {
 };
 
 export default api;
-

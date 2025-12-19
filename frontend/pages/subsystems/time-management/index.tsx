@@ -1,238 +1,298 @@
-import Link from "next/link";
-import { Settings, FileText, DollarSign, ArrowLeft, Clock, AlertCircle, Calendar, Users, Bell } from "lucide-react";
-import { getCurrentUserRole, type UserRole } from "../../../utils/auth";
-import { useState, useEffect } from "react";
-import dynamic from "next/dynamic";
+import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/router';
+import dynamic from 'next/dynamic';
+import { getCurrentUser, getCurrentUserRole, type UserRole } from '../../../utils/auth';
 
-// Import the existing page components - they will be rendered as tab content
-const PoliciesPage = dynamic(() => import("./policies"), { ssr: false });
-const ReportsPage = dynamic(() => import("./reports"), { ssr: false });
-const PayrollPage = dynamic(() => import("./payroll-sync"), { ssr: false });
-const AttendancePage = dynamic(() => import("./attendance"), { ssr: false });
-const ExceptionsPage = dynamic(() => import("./exceptions"), { ssr: false });
+// Dynamically import tab components
+const ShiftsTemplates = dynamic(() => import('./shifts-templates'), { ssr: false });
+const ShiftsAssignments = dynamic(() => import('./shifts-assignments'), { ssr: false });
+const ShiftsNotifications = dynamic(() => import('./shifts-notifications'), { ssr: false });
+const ShiftsSchedulingRules = dynamic(() => import('./shifts-scheduling-rules'), { ssr: false });
+const Attendance = dynamic(() => import('./attendance'), { ssr: false });
+const Exceptions = dynamic(() => import('./exceptions'), { ssr: false });
+const Policies = dynamic(() => import('./policies'), { ssr: false });
+const Reports = dynamic(() => import('./reports'), { ssr: false });
+const PayrollSync = dynamic(() => import('./payroll-sync'), { ssr: false });
 
-// Import shift management components
-const ShiftsTemplatesPage = dynamic(() => import("./shifts-templates"), { ssr: false });
-const ShiftsAssignmentsPage = dynamic(() => import("./shifts-assignments"), { ssr: false });
-const ShiftsNotificationsPage = dynamic(() => import("./shifts-notifications"), { ssr: false });
-const ShiftsSchedulingRulesPage = dynamic(() => import("./shifts-scheduling-rules"), { ssr: false });
+type TabId = 
+  | 'shifts-templates'
+  | 'shifts-assignments'
+  | 'shifts-notifications'
+  | 'shifts-scheduling-rules'
+  | 'attendance'
+  | 'exceptions'
+  | 'policies'
+  | 'reports'
+  | 'payroll-sync';
 
-type MainTabType = "attendance" | "exceptions" | "shifts-templates" | "shifts-assignments" | "shifts-notifications" | "shifts-scheduling-rules" | "policies" | "reports" | "payroll";
+interface Tab {
+  id: TabId;
+  label: string;
+  icon: string;
+  roles: string[];
+}
 
-export default function TimeManagement() {
+const tabs: Tab[] = [
+  {
+    id: 'shifts-templates',
+    label: 'Shift Templates',
+    icon: '📋',
+    roles: ['HR Manager', 'System Admin', 'HR Admin'],
+  },
+  {
+    id: 'shifts-assignments',
+    label: 'Shift Assignments',
+    icon: '📅',
+    roles: ['HR Manager', 'System Admin', 'HR Admin'],
+  },
+  {
+    id: 'shifts-notifications',
+    label: 'Expiry Notifications',
+    icon: '🔔',
+    roles: ['HR Manager', 'System Admin', 'HR Admin'],
+  },
+  {
+    id: 'shifts-scheduling-rules',
+    label: 'Scheduling Rules',
+    icon: '⚙️',
+    roles: ['HR Manager', 'System Admin', 'HR Admin'],
+  },
+  {
+    id: 'attendance',
+    label: 'Attendance',
+    icon: '⏰',
+    roles: ['HR Manager', 'System Admin', 'HR Admin', 'department head', 'Employee'],
+  },
+  {
+    id: 'exceptions',
+    label: 'Exceptions',
+    icon: '⚠️',
+    roles: ['HR Manager', 'System Admin', 'HR Admin', 'department head'],
+  },
+  {
+    id: 'policies',
+    label: 'Policies',
+    icon: '📜',
+    roles: ['HR Manager', 'System Admin', 'HR Admin'],
+  },
+  {
+    id: 'reports',
+    label: 'Reports',
+    icon: '📊',
+    roles: ['HR Manager', 'System Admin', 'HR Admin', 'Payroll Manager', 'Payroll Specialist'],
+  },
+  {
+    id: 'payroll-sync',
+    label: 'Payroll Integration',
+    icon: '💰',
+    roles: ['HR Manager', 'System Admin', 'Payroll Manager', 'Payroll Specialist', 'HR Admin'],
+  },
+];
+
+export default function TimeManagementPage() {
+  const router = useRouter();
+  const [activeTab, setActiveTab] = useState<TabId>('attendance');
   const [userRole, setUserRole] = useState<UserRole | null>(null);
-  const [activeTab, setActiveTab] = useState<MainTabType>("attendance");
+  const [currentUser, setCurrentUser] = useState<{ id: string; role: UserRole; username: string } | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
-  // Permission checks
-  const canAccessAttendance = (): boolean => {
-    if (!userRole) return false;
-    return true; // All employees can access attendance dashboard
+  // Helper function to check tab access
+  const canAccessTab = (tabId: TabId, role: UserRole | null): boolean => {
+    if (!role) return false;
+    const tab = tabs.find(t => t.id === tabId);
+    if (!tab) return false;
+    return tab.roles.some(r => r.toLowerCase() === role.toLowerCase());
   };
+
+  useEffect(() => {
+    // Check if we're in the browser (client-side)
+    if (typeof window === 'undefined') {
+      setIsLoading(false);
+      return;
+    }
+
+    // Get current user using the same auth utilities as index.tsx
+    const user = getCurrentUser();
+    const role = getCurrentUserRole();
+    
+    // Check if user is logged in
+    if (!user && !role) {
+      // No user found, redirect to login
+      router.push('/login');
+      return;
+    }
+
+    // Set user and role
+    setCurrentUser(user);
+    setUserRole(role);
+    setIsLoading(false);
+
+    // Set default tab based on role
+    if (role) {
+      const availableTabs = tabs.filter(tab => canAccessTab(tab.id, role));
+      if (availableTabs.length > 0) {
+        setActiveTab(availableTabs[0].id);
+      }
+    }
+  }, [router]);
 
   const canAccessExceptions = (): boolean => {
     if (!userRole) return false;
     return userRole === 'HR Manager' || userRole === 'System Admin' || userRole === 'HR Admin' || userRole === 'department head';
   };
 
-  const canAccessShiftManagement = (): boolean => {
-    if (!userRole) return false;
-    return userRole === 'HR Manager' || userRole === 'System Admin' || userRole === 'HR Admin';
-  };
-
-  const canAccessReports = (): boolean => {
-    if (!userRole) return false;
-    return userRole === 'HR Manager' || userRole === 'System Admin' || 
-           userRole === 'HR Admin' || userRole === 'Payroll Specialist' || 
-           userRole === 'Payroll Manager';
-  };
-
-  const canAccessPolicies = (): boolean => {
-    if (!userRole) return false;
-    return userRole === 'HR Manager' || userRole === 'System Admin';
-  };
-
   const canAccessPayrollIntegration = (): boolean => {
     if (!userRole) return false;
-    return userRole === 'HR Manager' || userRole === 'System Admin' || userRole === 'HR Admin' ||
-           userRole === 'Payroll Specialist' || userRole === 'Payroll Manager';
+    return userRole === 'HR Manager' || userRole === 'System Admin' ||
+           userRole === 'Payroll Specialist' || userRole === 'Payroll Manager' || userRole === 'HR Admin';
   };
 
-  useEffect(() => {
-    const role = getCurrentUserRole();
-    setUserRole(role);
-    
-    // Set default tab based on available access
-    // All users can access attendance
-    setActiveTab("attendance");
-    
-    // If user has shift management access, they can also access other tabs
-    // but attendance is the default for everyone
-    if (role && (role === 'HR Manager' || role === 'System Admin' || role === 'HR Admin')) {
-      // They have access to shift management, but attendance is still default
+  const userId = currentUser?.id || null;
+
+  const availableTabs = tabs.filter(tab => canAccessTab(tab.id, userRole));
+
+  const renderTabContent = () => {
+    switch (activeTab) {
+      case 'shifts-templates':
+        return <ShiftsTemplates />;
+      case 'shifts-assignments':
+        return <ShiftsAssignments />;
+      case 'shifts-notifications':
+        return <ShiftsNotifications />;
+      case 'shifts-scheduling-rules':
+        return <ShiftsSchedulingRules />;
+      case 'attendance':
+        return <Attendance />;
+      case 'exceptions':
+        return <Exceptions />;
+      case 'policies':
+        return <Policies />;
+      case 'reports':
+        return <Reports />;
+      case 'payroll-sync':
+        return <PayrollSync />;
+      default:
+        return <div className="p-6 text-center text-white/70">Select a tab to view content</div>;
     }
-  }, []);
+  };
 
-  const tabs = [
-    {
-      id: "attendance" as MainTabType,
-      label: "Attendance",
-      icon: Clock,
-      canAccess: canAccessAttendance(),
-      color: "#60a5fa",
-    },
-    {
-      id: "exceptions" as MainTabType,
-      label: "Exceptions",
-      icon: AlertCircle,
-      canAccess: canAccessExceptions(),
-      color: "#f59e0b",
-    },
-    {
-      id: "shifts-templates" as MainTabType,
-      label: "Shift Templates",
-      icon: Calendar,
-      canAccess: canAccessShiftManagement(),
-      color: "#10b981",
-    },
-    {
-      id: "shifts-assignments" as MainTabType,
-      label: "Shift Assignments",
-      icon: Users,
-      canAccess: canAccessShiftManagement(),
-      color: "#3b82f6",
-    },
-    {
-      id: "shifts-notifications" as MainTabType,
-      label: "Shift Notifications",
-      icon: Bell,
-      canAccess: canAccessShiftManagement(),
-      color: "#f59e0b",
-    },
-    {
-      id: "shifts-scheduling-rules" as MainTabType,
-      label: "Scheduling Rules",
-      icon: Settings,
-      canAccess: canAccessShiftManagement(),
-      color: "#8b5cf6",
-    },
-    {
-      id: "policies" as MainTabType,
-      label: "Policies",
-      icon: Settings,
-      canAccess: canAccessPolicies(),
-      color: "#8b5cf6",
-    },
-    {
-      id: "reports" as MainTabType,
-      label: "Reports & Analytics",
-      icon: FileText,
-      canAccess: canAccessReports(),
-      color: "#a78bfa",
-    },
-    {
-      id: "payroll" as MainTabType,
-      label: "Payroll Integration",
-      icon: DollarSign,
-      canAccess: canAccessPayrollIntegration(),
-      color: "#4ade80",
-    },
-  ].filter(tab => tab.canAccess);
-
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-blue-950 to-slate-900 text-white">
-      <div className="px-6 py-12">
-        <div className="max-w-7xl mx-auto">
-          {/* Header */}
-          <div className="mb-8">
-            <Link href="/">
-              <button className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors mb-4">
-                <ArrowLeft className="w-5 h-5" />
-                <span>Back to Home</span>
-              </button>
-            </Link>
-            <div className="flex items-center gap-4 mb-2">
-              <div className="p-3 bg-gradient-to-br from-teal-500 to-emerald-500 rounded-2xl">
-                <FileText className="w-8 h-8 text-white" />
-              </div>
-              <div>
-                <h1 className="text-4xl lg:text-5xl font-light">Time Management</h1>
-                <p className="text-gray-400 mt-1">
-                  Attendance, Shift Management, Policies, Reports & Analytics, and Payroll Integration
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {/* Tabs Navigation */}
-          {tabs.length > 0 && (
-            <div className="flex gap-2 mb-6 border-b border-white/10 overflow-x-auto">
-              {tabs.map((tab) => {
-                const Icon = tab.icon;
-                const isActive = activeTab === tab.id;
-                return (
-                  <button
-                    key={tab.id}
-                    onClick={() => setActiveTab(tab.id)}
-                    className={`flex items-center gap-2 px-6 py-3 border-b-2 transition-colors whitespace-nowrap ${
-                      isActive
-                        ? ""
-                        : "border-transparent text-gray-400 hover:text-white"
-                    }`}
-                    style={
-                      isActive
-                        ? {
-                            borderBottomColor: tab.color,
-                            color: tab.color,
-                          }
-                        : {}
-                    }
-                  >
-                    <Icon className="w-4 h-4" />
-                    <span>{tab.label}</span>
-                  </button>
-                );
-              })}
-            </div>
-          )}
-
-          {/* Tab Content */}
-          <div className="bg-white/5 border border-white/10 backdrop-blur-xl rounded-3xl p-8 min-h-[600px] overflow-hidden">
-            {activeTab === "attendance" && canAccessAttendance() && (
-              <AttendancePage asTab={true} />
-            )}
-            {activeTab === "exceptions" && canAccessExceptions() && (
-              <ExceptionsPage asTab={true} />
-            )}
-            {activeTab === "shifts-templates" && canAccessShiftManagement() && (
-              <ShiftsTemplatesPage asTab={true} />
-            )}
-            {activeTab === "shifts-assignments" && canAccessShiftManagement() && (
-              <ShiftsAssignmentsPage asTab={true} />
-            )}
-            {activeTab === "shifts-notifications" && canAccessShiftManagement() && (
-              <ShiftsNotificationsPage asTab={true} />
-            )}
-            {activeTab === "shifts-scheduling-rules" && canAccessShiftManagement() && (
-              <ShiftsSchedulingRulesPage asTab={true} />
-            )}
-            {activeTab === "policies" && canAccessPolicies() && (
-              <PoliciesPage asTab={true} />
-            )}
-            {activeTab === "reports" && canAccessReports() && (
-              <ReportsPage asTab={true} />
-            )}
-            {activeTab === "payroll" && canAccessPayrollIntegration() && (
-              <PayrollPage asTab={true} />
-            )}
-            
-            {tabs.length === 0 && (
-              <div className="text-center py-12">
-                <p className="text-gray-400">You do not have access to any Time Management features.</p>
-              </div>
-            )}
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-950 via-blue-950 to-slate-900 text-white">
+        <div className="text-center">
+          <div className="animate-pulse">
+            <div className="w-16 h-16 border-4 border-cyan-500/30 border-t-cyan-500 rounded-full mx-auto mb-4"></div>
+            <p className="text-cyan-300">Loading...</p>
           </div>
         </div>
       </div>
+    );
+  }
+
+  // If no role, show a helpful message
+  if (!userRole) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-950 via-blue-950 to-slate-900 text-white px-6">
+        <div className="text-center max-w-md mx-auto bg-white/5 border border-white/10 rounded-3xl p-8">
+          <div className="mb-6">
+            <p className="text-red-400 mb-2 font-semibold text-lg">Authentication Required</p>
+            <p className="text-gray-400 text-sm">
+              Please log in to access Time Management features.
+            </p>
+          </div>
+          <div className="flex gap-3 justify-center">
+            <button
+              onClick={() => {
+                // Retry getting user
+                const user = getCurrentUser();
+                const role = getCurrentUserRole();
+                if (user || role) {
+                  setCurrentUser(user);
+                  setUserRole(role);
+                } else {
+                  router.push('/');
+                }
+              }}
+              className="px-6 py-2.5 bg-white/5 border border-white/10 rounded-xl hover:bg-white/10"
+            >
+              Retry
+            </button>
+            <button
+              onClick={() => router.push('/')}
+              className="px-6 py-2.5 bg-white/5 border border-white/10 rounded-xl hover:bg-white/10"
+            >
+              Go to Home
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (availableTabs.length === 0) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-950 via-blue-950 to-slate-900 text-white px-6">
+        <div className="text-center bg-white/5 border border-white/10 rounded-3xl p-8 max-w-md">
+          <p className="text-yellow-400 mb-4 font-semibold">Access Denied</p>
+          <p className="text-gray-400 text-sm mb-6">
+            You don't have access to Time Management features.
+          </p>
+          <button
+            onClick={() => router.push('/')}
+            className="px-6 py-2.5 bg-gradient-to-r from-blue-600 to-cyan-600 rounded-xl"
+          >
+            Go to Home
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-blue-950 to-slate-900 text-white">
+      {/* Back Button */}
+      <div className="fixed top-6 left-6 z-50">
+        <button
+          onClick={() => router.push('/')}
+          className="px-5 py-2 bg-white/5 border border-white/10 rounded-xl hover:bg-white/10 transition-all"
+        >
+          ← Back
+        </button>
+      </div>
+
+      <main className="pt-32 px-6 max-w-7xl mx-auto">
+        <h2 className="text-5xl mb-12 text-center">Time Management</h2>
+
+        {/* Tabs */}
+        <div className="mb-8">
+          <div className="bg-white/5 border border-white/10 rounded-3xl p-2">
+            <nav className="flex flex-wrap gap-2" aria-label="Tabs">
+              {availableTabs.map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`
+                    px-6 py-3 rounded-2xl font-medium text-sm transition-all
+                    ${
+                      activeTab === tab.id
+                        ? 'bg-gradient-to-r from-teal-500 to-emerald-500 text-white'
+                        : 'text-white/70 hover:text-white hover:bg-white/5'
+                    }
+                  `}
+                >
+                  <span className="mr-2">{tab.icon}</span>
+                  {tab.label}
+                </button>
+              ))}
+            </nav>
+          </div>
+        </div>
+
+        {/* Tab Content */}
+        <div className="bg-white/5 border border-white/10 rounded-3xl p-8 min-h-[400px]">
+          {renderTabContent()}
+        </div>
+      </main>
     </div>
   );
 }

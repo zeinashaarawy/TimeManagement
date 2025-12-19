@@ -1,13 +1,6 @@
 import { Injectable, CanActivate, ExecutionContext } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 
-interface RequestWithUser extends Request {
-  user?: {
-    id: string;
-    roles: string[];
-  };
-}
-
 @Injectable()
 export class RolesGuard implements CanActivate {
   constructor(private readonly reflector: Reflector) {}
@@ -17,11 +10,18 @@ export class RolesGuard implements CanActivate {
       context.getHandler(),
       context.getClass(),
     ]);
-    if (!requiredRoles) {
+
+    if (!requiredRoles || requiredRoles.length === 0) {
       return true;
     }
-    const request = context.switchToHttp().getRequest<RequestWithUser>();
-    const user = request.user;
-    return requiredRoles.some((role) => user?.roles?.includes(role));
+
+    const { user } = context.switchToHttp().getRequest();
+
+    if (!user || !user.role) {
+      return false;
+    }
+
+    // Compare single role string with allowed roles
+    return requiredRoles.includes(user.role);
   }
 }

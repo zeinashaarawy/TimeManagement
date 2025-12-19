@@ -1,12 +1,5 @@
 // src/performance/dto/create-appraisal-record.dto.ts
-import {
-  IsArray,
-  IsMongoId,
-  IsOptional,
-  IsString,
-  ValidateNested,
-  IsNumber,
-} from 'class-validator';
+import { IsArray, IsMongoId, IsOptional, IsString, ValidateNested, IsNumber } from 'class-validator';
 import { Type } from 'class-transformer';
 import { RatingEntryDto } from './rating-entry.dto';
 

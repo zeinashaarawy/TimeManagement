@@ -15,8 +15,19 @@ const getBaseURL = (): string => {
   if (typeof window !== 'undefined') {
     const hostname = window.location.hostname;
     // Backend port defaults to 3000, but can be overridden via env
+    // IMPORTANT: Always use port 3000 for backend, not the frontend port
+    // Force port 3000 unless explicitly set via environment variable
     const backendPort = process.env.NEXT_PUBLIC_BACKEND_PORT || '3000';
-    return `http://${hostname}:${backendPort}`;
+    const baseURL = `http://${hostname}:${backendPort}`;
+    
+    // Log for debugging - always log in development
+    console.log('[API Config] BASE_URL:', baseURL);
+    console.log('[API Config] Frontend URL:', window.location.origin);
+    console.log('[API Config] Frontend Port:', window.location.port);
+    console.log('[API Config] Backend Port:', backendPort);
+    console.log('[API Config] NEXT_PUBLIC_BACKEND_PORT env:', process.env.NEXT_PUBLIC_BACKEND_PORT || 'not set (using default 3000)');
+    
+    return baseURL;
   }
   
   // Server-side fallback (SSR)
@@ -24,13 +35,6 @@ const getBaseURL = (): string => {
 };
 
 const BASE_URL = getBaseURL();
-
-// Log BASE_URL in development for debugging
-if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
-  console.log('[API] BASE_URL:', BASE_URL);
-  console.log('[API] Frontend URL:', window.location.origin);
-  console.log('[API] Backend Port:', process.env.NEXT_PUBLIC_BACKEND_PORT || '3000');
-}
 
 // ==========================================
 // API INSTANCES - Matching Backend Controllers
@@ -508,6 +512,59 @@ export const triggerExpiryDetection = (daysBeforeExpiry?: number) => {
  */
 export const resolveShiftExpiryNotification = (id: string, data: { resolutionNotes?: string }) =>
   TimeManagementAPI.patch(`/notifications/shifts/${id}/resolve`, data);
+
+// ==========================================
+// SCHEDULING RULES ENDPOINTS
+// @Controller('scheduling-rules')
+// ==========================================
+
+/**
+ * Get all scheduling rules
+ * GET /time-management/scheduling-rules
+ */
+export const getSchedulingRules = () => TimeManagementAPI.get("/scheduling-rules");
+
+/**
+ * Get scheduling rule by ID
+ * GET /time-management/scheduling-rules/:id
+ */
+export const getSchedulingRule = (id: string) => TimeManagementAPI.get(`/scheduling-rules/${id}`);
+
+/**
+ * Create a new scheduling rule
+ * POST /time-management/scheduling-rules
+ */
+export const createSchedulingRule = (data: any) => TimeManagementAPI.post("/scheduling-rules", data);
+
+/**
+ * Update a scheduling rule
+ * PATCH /time-management/scheduling-rules/:id
+ */
+export const updateSchedulingRule = (id: string, data: any) => 
+  TimeManagementAPI.patch(`/scheduling-rules/${id}`, data);
+
+/**
+ * Toggle scheduling rule active status
+ * PATCH /time-management/scheduling-rules/:id/toggle-active
+ */
+export const toggleSchedulingRuleActive = (id: string) => 
+  TimeManagementAPI.patch(`/scheduling-rules/${id}/toggle-active`);
+
+/**
+ * Delete a scheduling rule
+ * DELETE /time-management/scheduling-rules/:id
+ */
+export const deleteSchedulingRule = (id: string) => TimeManagementAPI.delete(`/scheduling-rules/${id}`);
+
+// Export scheduling rules API object for convenience
+export const schedulingRulesApi = {
+  getAll: getSchedulingRules,
+  getById: getSchedulingRule,
+  create: createSchedulingRule,
+  update: updateSchedulingRule,
+  toggleActive: toggleSchedulingRuleActive,
+  delete: deleteSchedulingRule,
+};
 
 // ==========================================
 // ATTENDANCE ENDPOINTS (Alternative)

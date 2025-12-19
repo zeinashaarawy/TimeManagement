@@ -1,8 +1,4 @@
-import {
-  Injectable,
-  BadRequestException,
-  NotFoundException,
-} from '@nestjs/common';
+import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Department } from '../models/department.schema';
@@ -57,9 +53,7 @@ export class StructureValidation {
     const statusVal = (pos as any).status;
     const isActiveFlag = (pos as any).isActive;
     const isActive =
-      (typeof statusVal !== 'undefined'
-        ? String(statusVal) === 'active'
-        : undefined) ??
+      (typeof statusVal !== 'undefined' ? String(statusVal) === 'active' : undefined) ??
       (typeof isActiveFlag !== 'undefined' ? Boolean(isActiveFlag) : false);
 
     if (!isActive) {
@@ -82,11 +76,10 @@ export class StructureValidation {
     let current = await this.positionModel.findById(parentId).lean();
 
     while (current) {
-      const reportsTo =
-        (current as any).reportsToPositionId ?? (current as any).reportingTo;
+      const reportsTo = (current as any).reportsToPositionId ?? (current as any).reportingTo;
       if (reportsTo && String(reportsTo) === childId) {
         throw new BadRequestException(
-          `Circular reporting detected: position ${childId} cannot report to ${parentId}`,
+          `Circular reporting detected: position ${childId} cannot report to ${parentId}`
         );
       }
       if (!reportsTo) break;

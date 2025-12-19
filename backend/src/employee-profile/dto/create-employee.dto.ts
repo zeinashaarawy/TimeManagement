@@ -1,15 +1,5 @@
-import {
-  IsString,
-  IsOptional,
-  IsDateString,
-  IsEnum,
-  IsObject,
-} from 'class-validator';
-import {
-  ContractType,
-  WorkType,
-  EmployeeStatus,
-} from '../enums/employee-profile.enums';
+import { IsString, IsOptional, IsDateString, IsEnum, IsObject } from 'class-validator';
+import { ContractType, WorkType, EmployeeStatus, SystemRole } from '../enums/employee-profile.enums';
 
 export class CreateEmployeeDto {
   // UserProfileBase fields
@@ -39,6 +29,9 @@ export class CreateEmployeeDto {
   // EmployeeProfile fields
   @IsString()
   employeeNumber: string;
+   
+  @IsEnum(SystemRole)
+ role: SystemRole;
 
   @IsDateString()
   dateOfHire: string;
@@ -86,4 +79,7 @@ export class CreateEmployeeDto {
   @IsOptional()
   @IsString()
   payGradeId?: string;
+
+
+
 }

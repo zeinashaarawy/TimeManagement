@@ -1,140 +1,78 @@
-import React, { useState, useEffect } from "react";
-import Link from "next/link";
-import { ArrowLeft, Plus, Edit, Trash2, Save, X, CheckCircle, XCircle, AlertCircle, Eye, Lock } from "lucide-react";
-import {
-  getPolicies,
-  createPolicy,
-  updatePolicy,
-  deletePolicy,
-} from "../../../services/timeManagementApi";
-import { getCurrentUserRole, getPolicyPermissions, type UserRole } from "../../../utils/auth";
+import React, { useState, useEffect } from 'react';
+import { getPolicies, createPolicy, updatePolicy, deletePolicy, assignPolicyToEmployee, assignPolicyToDepartment } from '../../../services/timeManagementApi';
 
-interface Policy {
-  _id: string;
+interface TimePolicy {
+  _id?: string;
   name: string;
   description?: string;
-  scope: "GLOBAL" | "DEPARTMENT" | "EMPLOYEE";
+  scope: 'GLOBAL' | 'DEPARTMENT' | 'EMPLOYEE';
   departmentId?: string;
   employeeId?: string;
   latenessRule?: {
-    gracePeriodMinutes: number;
-    deductionPerMinute: number;
-    cumulativeThresholdMinutes?: number;
-    maxDeductionPerDay?: number;
+    gracePeriodMinutes?: number;
+    deductionPerMinute?: number;
+    disciplinaryThreshold?: number;
+    autoPenalty?: boolean;
   };
   overtimeRule?: {
-    thresholdMinutes: number;
-    multiplier: number;
-    dailyCapMinutes?: number;
-    weeklyCapMinutes?: number;
+    eligibility?: boolean;
+    multiplier?: number;
+    approvalRequired?: boolean;
     weekendMultiplier?: number;
+    holidayMultiplier?: number;
   };
   shortTimeRule?: {
-    minimumWorkMinutes?: number;
-    penaltyPerMinute?: number;
-    gracePeriodMinutes?: number;
+    minimumHours?: number;
+    penaltyPerHour?: number;
+    autoDeduction?: boolean;
   };
   weekendRule?: {
-    approvalRequired?: boolean;
-    specialRate?: number;
+    enabled?: boolean;
     multiplier?: number;
   };
-  punchPolicy?: string;
   roundingRule?: string;
   roundingIntervalMinutes?: number;
   penaltyCapPerDay?: number;
-  active: boolean;
+  active?: boolean;
   effectiveFrom?: string;
   effectiveTo?: string;
 }
 
-export default function Policies({ asTab = false }: { asTab?: boolean } = {}) {
-  const [policies, setPolicies] = useState<Policy[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [showForm, setShowForm] = useState(false);
-  
-  // Role-based access control
-  const [userRole, setUserRole] = useState<UserRole | null>(null);
-  const [permissions, setPermissions] = useState(getPolicyPermissions(null));
-  
-  // Initialize role and permissions
-  useEffect(() => {
-    const role = getCurrentUserRole();
-    setUserRole(role);
-    setPermissions(getPolicyPermissions(role));
-  }, []);
-  
-  // Update role handler (for testing/demo)
-  const handleRoleChange = (newRole: UserRole) => {
-    setUserRole(newRole);
-    setPermissions(getPolicyPermissions(newRole));
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('userRole', newRole);
-    }
-  };
-
-  // Form state
-  const [formData, setFormData] = useState({
-    name: "",
-    description: "",
-    scope: "GLOBAL" as "GLOBAL" | "DEPARTMENT" | "EMPLOYEE",
-    departmentId: "",
-    employeeId: "",
+export default function Policies() {
+  const [policies, setPolicies] = useState<TimePolicy[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showModal, setShowModal] = useState(false);
+  const [editingPolicy, setEditingPolicy] = useState<TimePolicy | null>(null);
+  const [formData, setFormData] = useState<Partial<TimePolicy>>({
+    name: '',
+    description: '',
+    scope: 'GLOBAL',
     active: true,
-    latenessRule: {
-      gracePeriodMinutes: 0,
-      deductionPerMinute: 0,
-      cumulativeThresholdMinutes: 0,
-      maxDeductionPerDay: 0,
-    },
-    overtimeRule: {
-      thresholdMinutes: 480,
-      multiplier: 1.5,
-      dailyCapMinutes: 0,
-      weeklyCapMinutes: 0,
-      weekendMultiplier: 0,
-    },
-    shortTimeRule: {
-      minimumWorkMinutes: 480,
-      penaltyPerMinute: 0,
-      gracePeriodMinutes: 0,
-    },
-    weekendRule: {
-      approvalRequired: false,
-      specialRate: 0,
-      multiplier: 1.5,
-    },
-    punchPolicy: "FIRST_LAST",
-    roundingRule: "NONE",
+    roundingRule: 'NONE',
     roundingIntervalMinutes: 15,
     penaltyCapPerDay: 0,
-    effectiveFrom: "",
-    effectiveTo: "",
   });
+  const [filters, setFilters] = useState({
+    scope: '',
+    active: '',
+  });
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
 
   useEffect(() => {
-    if (permissions.canView) {
-      fetchPolicies();
-    }
-  }, [permissions.canView]);
+    loadPolicies();
+  }, [filters]);
 
-  const fetchPolicies = async () => {
-    setLoading(true);
-    setError(null);
+  const loadPolicies = async () => {
     try {
-      const response = await getPolicies();
-      setPolicies(response.data);
+      setLoading(true);
+      const response = await getPolicies({
+        scope: filters.scope || undefined,
+        active: filters.active ? filters.active === 'true' : undefined,
+      });
+      setPolicies(response.data || []);
     } catch (err: any) {
-      console.error("Error fetching policies:", err);
-      const errorMessage = 
-        err.response?.data?.message || 
-        err.response?.data?.error || 
-        err.message || 
-        "Failed to fetch policies";
-      setError(`Error: ${errorMessage}. ${err.response?.status ? `Status: ${err.response.status}` : ''}`);
+      setError(err.message || 'Failed to load policies');
     } finally {
       setLoading(false);
     }
@@ -142,1014 +80,425 @@ export default function Policies({ asTab = false }: { asTab?: boolean } = {}) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    // Check permissions
-    if (editingId && !permissions.canEdit) {
-      setError("You do not have permission to edit policies");
-      return;
-    }
-    if (!editingId && !permissions.canCreate) {
-      setError("You do not have permission to create policies");
-      return;
-    }
-    
-    setLoading(true);
     setError(null);
     setSuccess(null);
 
     try {
-      // Prepare data according to backend schema
-      const policyData: any = {
-        name: formData.name,
-        description: formData.description || undefined,
-        scope: formData.scope,
-        active: formData.active,
-      };
-
-      // Add scope-specific IDs
-      if (formData.scope === "DEPARTMENT" && formData.departmentId) {
-        policyData.departmentId = formData.departmentId;
-      }
-      if (formData.scope === "EMPLOYEE" && formData.employeeId) {
-        policyData.employeeId = formData.employeeId;
-      }
-
-      // Add lateness rule if configured
-      if (formData.latenessRule.gracePeriodMinutes > 0 || formData.latenessRule.deductionPerMinute > 0) {
-        const latenessRule: any = {
-          gracePeriodMinutes: formData.latenessRule.gracePeriodMinutes,
-          deductionPerMinute: formData.latenessRule.deductionPerMinute,
-        };
-        if (formData.latenessRule.cumulativeThresholdMinutes > 0) {
-          latenessRule.cumulativeThresholdMinutes = formData.latenessRule.cumulativeThresholdMinutes;
-        }
-        if (formData.latenessRule.maxDeductionPerDay > 0) {
-          latenessRule.maxDeductionPerDay = formData.latenessRule.maxDeductionPerDay;
-        }
-        policyData.latenessRule = latenessRule;
-      }
-
-      // Add overtime rule if configured
-      if (formData.overtimeRule.thresholdMinutes > 0) {
-        const overtimeRule: any = {
-          thresholdMinutes: formData.overtimeRule.thresholdMinutes,
-          multiplier: formData.overtimeRule.multiplier,
-        };
-        if (formData.overtimeRule.dailyCapMinutes > 0) {
-          overtimeRule.dailyCapMinutes = formData.overtimeRule.dailyCapMinutes;
-        }
-        if (formData.overtimeRule.weeklyCapMinutes > 0) {
-          overtimeRule.weeklyCapMinutes = formData.overtimeRule.weeklyCapMinutes;
-        }
-        if (formData.overtimeRule.weekendMultiplier > 0) {
-          overtimeRule.weekendMultiplier = formData.overtimeRule.weekendMultiplier;
-        }
-        policyData.overtimeRule = overtimeRule;
-      }
-
-      // Add short-time rule if configured
-      if (formData.shortTimeRule.minimumWorkMinutes > 0) {
-        const shortTimeRule: any = {
-          minimumWorkMinutes: formData.shortTimeRule.minimumWorkMinutes,
-        };
-        if (formData.shortTimeRule.penaltyPerMinute > 0) {
-          shortTimeRule.penaltyPerMinute = formData.shortTimeRule.penaltyPerMinute;
-        }
-        if (formData.shortTimeRule.gracePeriodMinutes > 0) {
-          shortTimeRule.gracePeriodMinutes = formData.shortTimeRule.gracePeriodMinutes;
-        }
-        policyData.shortTimeRule = shortTimeRule;
-      }
-
-      // Add weekend rule if configured
-      if (formData.weekendRule.approvalRequired || formData.weekendRule.multiplier > 0) {
-        const weekendRule: any = {
-          approvalRequired: formData.weekendRule.approvalRequired || false,
-          multiplier: formData.weekendRule.multiplier || 1.5,
-        };
-        if (formData.weekendRule.specialRate > 0) {
-          weekendRule.specialRate = formData.weekendRule.specialRate;
-        }
-        policyData.weekendRule = weekendRule;
-      }
-
-      // Add punch policy if configured
-      if (formData.punchPolicy && formData.punchPolicy !== "FIRST_LAST") {
-        policyData.punchPolicy = formData.punchPolicy;
-      }
-
-      // Add short-time rule if configured
-      if (formData.shortTimeRule.minimumWorkMinutes > 0) {
-        const shortTimeRule: any = {
-          minimumWorkMinutes: formData.shortTimeRule.minimumWorkMinutes,
-        };
-        if (formData.shortTimeRule.penaltyPerMinute > 0) {
-          shortTimeRule.penaltyPerMinute = formData.shortTimeRule.penaltyPerMinute;
-        }
-        if (formData.shortTimeRule.gracePeriodMinutes > 0) {
-          shortTimeRule.gracePeriodMinutes = formData.shortTimeRule.gracePeriodMinutes;
-        }
-        policyData.shortTimeRule = shortTimeRule;
-      }
-
-      // Add weekend rule if configured
-      if (formData.weekendRule.approvalRequired || formData.weekendRule.multiplier > 0) {
-        const weekendRule: any = {
-          approvalRequired: formData.weekendRule.approvalRequired || false,
-          multiplier: formData.weekendRule.multiplier || 1.5,
-        };
-        if (formData.weekendRule.specialRate > 0) {
-          weekendRule.specialRate = formData.weekendRule.specialRate;
-        }
-        policyData.weekendRule = weekendRule;
-      }
-
-      // Add punch policy if configured
-      if (formData.punchPolicy && formData.punchPolicy !== "FIRST_LAST") {
-        policyData.punchPolicy = formData.punchPolicy;
-      }
-
-      // Add rounding rule
-      if (formData.roundingRule !== "NONE") {
-        policyData.roundingRule = formData.roundingRule;
-        policyData.roundingIntervalMinutes = formData.roundingIntervalMinutes;
-      }
-
-      // Add penalty cap
-      if (formData.penaltyCapPerDay > 0) {
-        policyData.penaltyCapPerDay = formData.penaltyCapPerDay;
-      }
-
-      // Add effective dates
-      if (formData.effectiveFrom) {
-        policyData.effectiveFrom = new Date(formData.effectiveFrom).toISOString();
-      }
-      if (formData.effectiveTo) {
-        policyData.effectiveTo = new Date(formData.effectiveTo).toISOString();
-      }
-
-      if (editingId) {
-        await updatePolicy(editingId, policyData);
-        setSuccess("Policy updated successfully!");
+      if (editingPolicy?._id) {
+        await updatePolicy(editingPolicy._id, formData);
+        setSuccess('Policy updated successfully');
       } else {
-        await createPolicy(policyData);
-        setSuccess("Policy created successfully!");
+        await createPolicy(formData);
+        setSuccess('Policy created successfully');
       }
 
+      setShowModal(false);
+      setEditingPolicy(null);
       resetForm();
-      fetchPolicies();
+      loadPolicies();
     } catch (err: any) {
-      console.error("Error saving policy:", err);
-      const errorMessage = 
-        err.response?.data?.message || 
-        err.response?.data?.error || 
-        err.message || 
-        "Failed to save policy";
-      setError(`Error: ${errorMessage}. ${err.response?.status ? `Status: ${err.response.status}` : ''}`);
-    } finally {
-      setLoading(false);
+      setError(err.response?.data?.message || err.message || 'Failed to save policy');
     }
-  };
-
-  const handleEdit = (policy: Policy) => {
-    setEditingId(policy._id);
-    setFormData({
-      name: policy.name,
-      description: policy.description || "",
-      scope: policy.scope,
-      departmentId: policy.departmentId || "",
-      employeeId: policy.employeeId || "",
-      active: policy.active,
-      latenessRule: {
-        gracePeriodMinutes: policy.latenessRule?.gracePeriodMinutes || 0,
-        deductionPerMinute: policy.latenessRule?.deductionPerMinute || 0,
-        cumulativeThresholdMinutes: policy.latenessRule?.cumulativeThresholdMinutes || 0,
-        maxDeductionPerDay: policy.latenessRule?.maxDeductionPerDay || 0,
-      },
-      overtimeRule: {
-        thresholdMinutes: policy.overtimeRule?.thresholdMinutes || 480,
-        multiplier: policy.overtimeRule?.multiplier || 1.5,
-        dailyCapMinutes: policy.overtimeRule?.dailyCapMinutes || 0,
-        weeklyCapMinutes: policy.overtimeRule?.weeklyCapMinutes || 0,
-        weekendMultiplier: policy.overtimeRule?.weekendMultiplier || 0,
-      },
-      shortTimeRule: {
-        minimumWorkMinutes: policy.shortTimeRule?.minimumWorkMinutes || 480,
-        penaltyPerMinute: policy.shortTimeRule?.penaltyPerMinute || 0,
-        gracePeriodMinutes: policy.shortTimeRule?.gracePeriodMinutes || 0,
-      },
-      weekendRule: {
-        approvalRequired: policy.weekendRule?.approvalRequired || false,
-        specialRate: policy.weekendRule?.specialRate || 0,
-        multiplier: policy.weekendRule?.multiplier || 1.5,
-      },
-      punchPolicy: policy.punchPolicy || "FIRST_LAST",
-      roundingRule: policy.roundingRule || "NONE",
-      roundingIntervalMinutes: policy.roundingIntervalMinutes || 15,
-      penaltyCapPerDay: policy.penaltyCapPerDay || 0,
-      effectiveFrom: policy.effectiveFrom ? policy.effectiveFrom.split("T")[0] : "",
-      effectiveTo: policy.effectiveTo ? policy.effectiveTo.split("T")[0] : "",
-    });
-    setShowForm(true);
-    window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   const handleDelete = async (id: string) => {
-    if (!permissions.canDelete) {
-      setError("You do not have permission to delete policies");
-      return;
-    }
-    
-    if (!confirm("Are you sure you want to delete this policy?")) return;
+    if (!confirm('Are you sure you want to delete this policy?')) return;
 
-    setLoading(true);
-    setError(null);
     try {
       await deletePolicy(id);
-      setSuccess("Policy deleted successfully!");
-      fetchPolicies();
+      setSuccess('Policy deleted successfully');
+      loadPolicies();
     } catch (err: any) {
-      setError(err.response?.data?.message || "Failed to delete policy");
-    } finally {
-      setLoading(false);
+      setError(err.response?.data?.message || err.message || 'Failed to delete policy');
     }
   };
 
   const resetForm = () => {
     setFormData({
-      name: "",
-      description: "",
-      scope: "GLOBAL",
-      departmentId: "",
-      employeeId: "",
+      name: '',
+      description: '',
+      scope: 'GLOBAL',
       active: true,
-      latenessRule: {
-        gracePeriodMinutes: 0,
-        deductionPerMinute: 0,
-        cumulativeThresholdMinutes: 0,
-        maxDeductionPerDay: 0,
-      },
-      overtimeRule: {
-        thresholdMinutes: 480,
-        multiplier: 1.5,
-        dailyCapMinutes: 0,
-        weeklyCapMinutes: 0,
-        weekendMultiplier: 0,
-      },
-      shortTimeRule: {
-        minimumWorkMinutes: 480,
-        penaltyPerMinute: 0,
-        gracePeriodMinutes: 0,
-      },
-      weekendRule: {
-        approvalRequired: false,
-        specialRate: 0,
-        multiplier: 1.5,
-      },
-      punchPolicy: "FIRST_LAST",
-      roundingRule: "NONE",
+      roundingRule: 'NONE',
       roundingIntervalMinutes: 15,
       penaltyCapPerDay: 0,
-      effectiveFrom: "",
-      effectiveTo: "",
     });
-    setEditingId(null);
-    setShowForm(false);
   };
 
-  const content = (
-    <div className={asTab ? "" : "min-h-screen bg-gradient-to-br from-slate-950 via-blue-950 to-slate-900 text-white px-6 py-12"}>
-      <div className="max-w-6xl mx-auto">
-        {/* Header */}
-        {!asTab && (
-          <div className="mb-8">
-            <Link href="/subsystems/time-management">
-              <button className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors mb-4">
-                <ArrowLeft className="w-5 h-5" />
-                <span>Back to Time Management</span>
-              </button>
-            </Link>
+  const getScopeLabel = (scope: string) => {
+    const labels: Record<string, string> = {
+      GLOBAL: 'Global',
+      DEPARTMENT: 'Department',
+      EMPLOYEE: 'Employee',
+    };
+    return labels[scope] || scope;
+  };
+
+  if (loading) {
+    return (
+      <div className="w-full">
+        <div className="flex items-center justify-center py-12">
+          <div className="animate-pulse">
+            <div className="w-16 h-16 border-4 border-cyan-500/30 border-t-cyan-500 rounded-full"></div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="w-full">
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h2 className="text-2xl font-semibold mb-2 text-white">Time Policies</h2>
+          <p className="text-gray-400 text-sm">Configure overtime, lateness, and penalty rules</p>
+        </div>
+        <button
+          onClick={() => {
+            setEditingPolicy(null);
+            resetForm();
+            setShowModal(true);
+          }}
+          className="px-6 py-3 bg-gradient-to-r from-teal-500 to-emerald-500 rounded-xl hover:from-teal-400 hover:to-emerald-400 transition-all"
+        >
+          + Create Policy
+        </button>
+      </div>
+
+      {/* Messages */}
+      {error && (
+        <div className="mb-4 p-4 bg-red-500/10 border border-red-500/20 rounded-xl text-red-300">
+          {error}
+        </div>
+      )}
+      {success && (
+        <div className="mb-4 p-4 bg-green-500/10 border border-green-500/20 rounded-xl text-green-300">
+          {success}
+        </div>
+      )}
+
+      {/* Filters */}
+      <div className="mb-6 bg-white/5 border border-white/10 rounded-2xl p-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm text-gray-400 mb-2">Scope</label>
+            <select
+              value={filters.scope}
+              onChange={(e) => setFilters({ ...filters, scope: e.target.value })}
+              className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/10 text-white"
+            >
+              <option value="">All Scopes</option>
+              <option value="GLOBAL">Global</option>
+              <option value="DEPARTMENT">Department</option>
+              <option value="EMPLOYEE">Employee</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm text-gray-400 mb-2">Status</label>
+            <select
+              value={filters.active}
+              onChange={(e) => setFilters({ ...filters, active: e.target.value })}
+              className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/10 text-white"
+            >
+              <option value="">All Statuses</option>
+              <option value="true">Active</option>
+              <option value="false">Inactive</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      {/* Policies Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {policies.map((policy) => (
+          <div
+            key={policy._id}
+            className="bg-white/5 border border-white/10 rounded-2xl p-6 hover:border-white/20 transition-all"
+          >
             <div className="flex items-start justify-between mb-4">
               <div>
-                <h1 className="text-4xl lg:text-5xl font-light mb-2">Time Management Policies</h1>
-                <p className="text-gray-400">Configure time policies and rules for your organization</p>
+                <h3 className="text-lg font-semibold text-white mb-1">{policy.name}</h3>
+                <span className="text-xs px-2 py-1 rounded-full bg-teal-500/20 text-teal-300 border border-teal-400/30">
+                  {getScopeLabel(policy.scope)}
+                </span>
               </div>
-              {/* Role Selector for Testing/Demo */}
-              <div className="bg-white/5 border border-white/10 rounded-lg p-3">
-                <label className="block text-xs text-gray-400 mb-1">Current Role (Testing)</label>
-                <select
-                  value={userRole || ''}
-                  onChange={(e) => handleRoleChange(e.target.value as UserRole)}
-                  className="px-3 py-1.5 rounded bg-white/5 border border-white/10 text-white text-sm appearance-none cursor-pointer"
-                  style={{
-                    backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23ffffff' d='M6 9L1 4h10z'/%3E%3C/svg%3E")`,
-                    backgroundRepeat: 'no-repeat',
-                    backgroundPosition: 'right 0.5rem center',
-                    paddingRight: '1.75rem'
-                  }}
-                >
-                  <option value="department employee" className="bg-slate-800 text-white">Employee</option>
-                  <option value="department head" className="bg-slate-800 text-white">Manager</option>
-                  <option value="HR Manager" className="bg-slate-800 text-white">HR Manager</option>
-                  <option value="System Admin" className="bg-slate-800 text-white">System Admin</option>
-                </select>
-              </div>
+              <span className={`text-xs px-2 py-1 rounded-full border ${
+                policy.active
+                  ? 'bg-green-500/20 text-green-300 border-green-400/30'
+                  : 'bg-gray-500/20 text-gray-300 border-gray-400/30'
+              }`}>
+                {policy.active ? 'Active' : 'Inactive'}
+              </span>
             </div>
-          </div>
-        )}
 
-        {/* Access Denied Message */}
-        {!permissions.canView && (
-          <div className="mb-6 bg-red-500/10 border border-red-500/50 rounded-lg p-6 flex flex-col items-center gap-3">
-            <Lock className="w-8 h-8 text-red-400" />
-            <div className="text-center">
-              <h3 className="text-lg font-medium text-red-400 mb-2">Access Denied</h3>
-              <p className="text-red-300">
-                You do not have permission to view policies. Please contact your administrator.
-              </p>
+            {policy.description && (
+              <p className="text-sm text-gray-400 mb-4">{policy.description}</p>
+            )}
+
+            <div className="space-y-2 mb-4">
+              {policy.latenessRule && (
+                <div className="text-sm">
+                  <span className="text-gray-400">Lateness: </span>
+                  <span className="text-white">
+                    {policy.latenessRule.gracePeriodMinutes || 0} min grace, 
+                    ${policy.latenessRule.deductionPerMinute || 0}/min
+                  </span>
+                </div>
+              )}
+              {policy.overtimeRule && (
+                <div className="text-sm">
+                  <span className="text-gray-400">Overtime: </span>
+                  <span className="text-white">
+                    {policy.overtimeRule.multiplier || 1.5}x
+                    {policy.overtimeRule.approvalRequired && ' (Approval Required)'}
+                  </span>
+                </div>
+              )}
+              {policy.shortTimeRule && (
+                <div className="text-sm">
+                  <span className="text-gray-400">Short Time: </span>
+                  <span className="text-white">
+                    Min {policy.shortTimeRule.minimumHours || 0}h, 
+                    ${policy.shortTimeRule.penaltyPerHour || 0}/h
+                  </span>
+                </div>
+              )}
             </div>
-          </div>
-        )}
 
-        {/* Read-Only Access Message */}
-        {permissions.isReadOnly && (
-          <div className="mb-6 bg-yellow-500/10 border border-yellow-500/50 rounded-lg p-4 flex items-center gap-3">
-            <Eye className="w-5 h-5 text-yellow-400" />
-            <span className="text-yellow-400">
-              You have read-only access. You can view policies but cannot create, edit, or delete them.
-            </span>
-          </div>
-        )}
-
-        {/* Notifications */}
-        {error && (
-          <div className="mb-6 bg-red-500/10 border border-red-500/50 rounded-lg p-4 flex items-center gap-3">
-            <XCircle className="w-5 h-5 text-red-400" />
-            <span className="text-red-400">{error}</span>
-          </div>
-        )}
-
-        {success && (
-          <div className="mb-6 bg-green-500/10 border border-green-500/50 rounded-lg p-4 flex items-center gap-3">
-            <CheckCircle className="w-5 h-5 text-green-400" />
-            <span className="text-green-400">{success}</span>
-          </div>
-        )}
-
-        {/* Add Policy Button */}
-        {!showForm && permissions.canCreate && (
-          <div className="mb-6">
-            <button
-              onClick={() => setShowForm(true)}
-              className="px-6 py-3 bg-gradient-to-r from-blue-600 to-cyan-600 rounded-lg hover:from-blue-500 hover:to-cyan-500 transition-all flex items-center gap-2"
-            >
-              <Plus className="w-5 h-5" />
-              Create New Policy
-            </button>
-          </div>
-        )}
-
-        {/* Policy Form */}
-        {showForm && (
-          <div className="mb-8 bg-white/5 border border-white/10 rounded-2xl p-6 backdrop-blur-xl">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-2xl font-light">
-                {editingId ? "Edit Policy" : "Create New Policy"}
-              </h2>
+            <div className="flex gap-2 mt-4">
               <button
-                onClick={resetForm}
-                className="p-2 hover:bg-white/10 rounded-lg transition-all"
+                onClick={() => {
+                  setEditingPolicy(policy);
+                  setFormData(policy);
+                  setShowModal(true);
+                }}
+                className="flex-1 px-4 py-2 bg-white/5 border border-white/10 rounded-xl hover:bg-white/10 text-sm"
               >
-                <X className="w-5 h-5" />
+                Edit
+              </button>
+              <button
+                onClick={() => policy._id && handleDelete(policy._id)}
+                className="px-4 py-2 bg-red-500/10 border border-red-500/20 rounded-xl hover:bg-red-500/20 text-red-300 text-sm"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {policies.length === 0 && (
+        <div className="text-center py-12 bg-white/5 border border-white/10 rounded-2xl">
+          <p className="text-gray-400 mb-4">No policies found</p>
+          <button
+            onClick={() => setShowModal(true)}
+            className="px-6 py-3 bg-gradient-to-r from-teal-500 to-emerald-500 rounded-xl"
+          >
+            Create Your First Policy
+          </button>
+        </div>
+      )}
+
+      {/* Create/Edit Modal */}
+      {showModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+          <div className="bg-gradient-to-br from-slate-900 via-blue-950 to-slate-900 border border-white/10 rounded-3xl p-8 max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-2xl font-semibold text-white">
+                {editingPolicy ? 'Edit Time Policy' : 'Create Time Policy'}
+              </h3>
+              <button
+                onClick={() => {
+                  setShowModal(false);
+                  setEditingPolicy(null);
+                  resetForm();
+                  setError(null);
+                  setSuccess(null);
+                }}
+                className="p-2 hover:bg-white/10 rounded-lg"
+              >
+                <span className="text-white text-xl">×</span>
               </button>
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-6">
-              {/* Basic Information */}
-              <div className="grid md:grid-cols-2 gap-6">
+              <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block mb-2 text-sm text-gray-400">Policy Name *</label>
+                  <label className="block text-sm text-gray-400 mb-2">Policy Name *</label>
                   <input
                     type="text"
                     required
-                    disabled={permissions.isReadOnly}
-                    value={formData.name}
+                    value={formData.name || ''}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/10 focus:outline-none focus:border-blue-500/50 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/10 text-white"
                   />
                 </div>
-
                 <div>
-                  <label className="block mb-2 text-sm text-gray-400">Scope *</label>
+                  <label className="block text-sm text-gray-400 mb-2">Scope *</label>
                   <select
                     required
-                    disabled={permissions.isReadOnly || !permissions.canAssignScope}
-                    value={formData.scope}
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        scope: e.target.value as "GLOBAL" | "DEPARTMENT" | "EMPLOYEE",
-                      })
-                    }
-                    className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/10 focus:outline-none focus:border-blue-500/50 text-white appearance-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                    style={{
-                      backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23ffffff' d='M6 9L1 4h10z'/%3E%3C/svg%3E")`,
-                      backgroundRepeat: 'no-repeat',
-                      backgroundPosition: 'right 1rem center',
-                      paddingRight: '2.5rem'
-                    }}
+                    value={formData.scope || 'GLOBAL'}
+                    onChange={(e) => setFormData({ ...formData, scope: e.target.value as any })}
+                    className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/10 text-white"
                   >
-                    <option value="GLOBAL" className="bg-slate-800 text-white">Global</option>
-                    <option value="DEPARTMENT" className="bg-slate-800 text-white">Department</option>
-                    <option value="EMPLOYEE" className="bg-slate-800 text-white">Employee</option>
+                    <option value="GLOBAL">Global</option>
+                    <option value="DEPARTMENT">Department</option>
+                    <option value="EMPLOYEE">Employee</option>
                   </select>
+                </div>
+              </div>
+
+              {formData.scope === 'DEPARTMENT' && (
+                <div>
+                  <label className="block text-sm text-gray-400 mb-2">Department ID *</label>
+                  <input
+                    type="text"
+                    required
+                    value={formData.departmentId || ''}
+                    onChange={(e) => setFormData({ ...formData, departmentId: e.target.value })}
+                    className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/10 text-white"
+                  />
+                </div>
+              )}
+
+              {formData.scope === 'EMPLOYEE' && (
+                <div>
+                  <label className="block text-sm text-gray-400 mb-2">Employee ID *</label>
+                  <input
+                    type="text"
+                    required
+                    value={formData.employeeId || ''}
+                    onChange={(e) => setFormData({ ...formData, employeeId: e.target.value })}
+                    className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/10 text-white"
+                  />
+                </div>
+              )}
+
+              <div>
+                <label className="block text-sm text-gray-400 mb-2">Description</label>
+                <textarea
+                  value={formData.description || ''}
+                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                  className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/10 text-white"
+                  rows={3}
+                />
+              </div>
+
+              {/* Lateness Rules */}
+              <div className="bg-white/5 border border-white/10 rounded-xl p-4">
+                <h4 className="text-white font-semibold mb-4">Lateness Rules</h4>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm text-gray-400 mb-2">Grace Period (minutes)</label>
+                    <input
+                      type="number"
+                      value={formData.latenessRule?.gracePeriodMinutes || 15}
+                      onChange={(e) => setFormData({
+                        ...formData,
+                        latenessRule: {
+                          ...formData.latenessRule,
+                          gracePeriodMinutes: parseInt(e.target.value),
+                        },
+                      })}
+                      className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/10 text-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm text-gray-400 mb-2">Deduction per Minute ($)</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={formData.latenessRule?.deductionPerMinute || 0}
+                      onChange={(e) => setFormData({
+                        ...formData,
+                        latenessRule: {
+                          ...formData.latenessRule,
+                          deductionPerMinute: parseFloat(e.target.value),
+                        },
+                      })}
+                      className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/10 text-white"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Overtime Rules */}
+              <div className="bg-white/5 border border-white/10 rounded-xl p-4">
+                <h4 className="text-white font-semibold mb-4">Overtime Rules</h4>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm text-gray-400 mb-2">Multiplier</label>
+                    <input
+                      type="number"
+                      step="0.1"
+                      value={formData.overtimeRule?.multiplier || 1.5}
+                      onChange={(e) => setFormData({
+                        ...formData,
+                        overtimeRule: {
+                          ...formData.overtimeRule,
+                          multiplier: parseFloat(e.target.value),
+                        },
+                      })}
+                      className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/10 text-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="flex items-center gap-2 mt-6">
+                      <input
+                        type="checkbox"
+                        checked={formData.overtimeRule?.approvalRequired || false}
+                        onChange={(e) => setFormData({
+                          ...formData,
+                          overtimeRule: {
+                            ...formData.overtimeRule,
+                            approvalRequired: e.target.checked,
+                          },
+                        })}
+                        className="w-4 h-4 rounded bg-white/5 border-white/10"
+                      />
+                      <span className="text-sm text-gray-400">Approval Required</span>
+                    </label>
+                  </div>
                 </div>
               </div>
 
               <div>
-                <label className="block mb-2 text-sm text-gray-400">Description</label>
-                <textarea
-                  disabled={permissions.isReadOnly}
-                  value={formData.description}
-                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  rows={3}
-                  className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/10 focus:outline-none focus:border-blue-500/50 disabled:opacity-50 disabled:cursor-not-allowed"
-                />
-              </div>
-
-              {/* Scope-specific fields */}
-              {formData.scope === "DEPARTMENT" && (
-                <div>
-                  <label className="block mb-2 text-sm text-gray-400">Department ID *</label>
+                <label className="flex items-center gap-2">
                   <input
-                    type="text"
-                    required
-                    disabled={permissions.isReadOnly}
-                    value={formData.departmentId}
-                    onChange={(e) => setFormData({ ...formData, departmentId: e.target.value })}
-                    className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/10 focus:outline-none focus:border-blue-500/50 disabled:opacity-50 disabled:cursor-not-allowed"
+                    type="checkbox"
+                    checked={formData.active !== undefined ? formData.active : true}
+                    onChange={(e) => setFormData({ ...formData, active: e.target.checked })}
+                    className="w-4 h-4 rounded bg-white/5 border-white/10"
                   />
-                </div>
-              )}
-
-              {formData.scope === "EMPLOYEE" && (
-                <div>
-                  <label className="block mb-2 text-sm text-gray-400">Employee ID *</label>
-                  <input
-                    type="text"
-                    required
-                    disabled={permissions.isReadOnly}
-                    value={formData.employeeId}
-                    onChange={(e) => setFormData({ ...formData, employeeId: e.target.value })}
-                    className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/10 focus:outline-none focus:border-blue-500/50 disabled:opacity-50 disabled:cursor-not-allowed"
-                  />
-                </div>
-              )}
-
-              {/* Lateness Rule */}
-              <div className="border-t border-white/10 pt-6">
-                <h3 className="text-lg mb-4">Lateness Rule</h3>
-                <div className="grid md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block mb-2 text-sm text-gray-400">Grace Period (minutes)</label>
-                    <input
-                      type="number"
-                      min="0"
-                      disabled={permissions.isReadOnly}
-                      value={formData.latenessRule.gracePeriodMinutes}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          latenessRule: {
-                            ...formData.latenessRule,
-                            gracePeriodMinutes: parseInt(e.target.value) || 0,
-                          },
-                        })
-                      }
-                      className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/10 focus:outline-none focus:border-blue-500/50 disabled:opacity-50 disabled:cursor-not-allowed"
-                    />
-                  </div>
-                  <div>
-                    <label className="block mb-2 text-sm text-gray-400">
-                      Deduction Per Minute
-                    </label>
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      disabled={permissions.isReadOnly}
-                      value={formData.latenessRule.deductionPerMinute}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          latenessRule: {
-                            ...formData.latenessRule,
-                            deductionPerMinute: parseFloat(e.target.value) || 0,
-                          },
-                        })
-                      }
-                      className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/10 focus:outline-none focus:border-blue-500/50 disabled:opacity-50 disabled:cursor-not-allowed"
-                    />
-                  </div>
-                  <div>
-                    <label className="block mb-2 text-sm text-gray-400">
-                      Cumulative Threshold (minutes)
-                    </label>
-                    <input
-                      type="number"
-                      min="0"
-                      disabled={permissions.isReadOnly}
-                      value={formData.latenessRule.cumulativeThresholdMinutes}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          latenessRule: {
-                            ...formData.latenessRule,
-                            cumulativeThresholdMinutes: parseInt(e.target.value) || 0,
-                          },
-                        })
-                      }
-                      className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/10 focus:outline-none focus:border-blue-500/50 disabled:opacity-50 disabled:cursor-not-allowed"
-                    />
-                  </div>
-                  <div>
-                    <label className="block mb-2 text-sm text-gray-400">
-                      Max Deduction Per Day
-                    </label>
-                    <input
-                      type="number"
-                      min="0"
-                      disabled={permissions.isReadOnly}
-                      value={formData.latenessRule.maxDeductionPerDay}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          latenessRule: {
-                            ...formData.latenessRule,
-                            maxDeductionPerDay: parseFloat(e.target.value) || 0,
-                          },
-                        })
-                      }
-                      className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/10 focus:outline-none focus:border-blue-500/50 disabled:opacity-50 disabled:cursor-not-allowed"
-                    />
-                  </div>
-                </div>
+                  <span className="text-sm text-gray-400">Active</span>
+                </label>
               </div>
 
-              {/* Overtime Rule */}
-              <div className="border-t border-white/10 pt-6">
-                <h3 className="text-lg mb-4">Overtime Rule</h3>
-                <div className="grid md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block mb-2 text-sm text-gray-400">
-                      Threshold (minutes)
-                    </label>
-                    <input
-                      type="number"
-                      min="0"
-                      disabled={permissions.isReadOnly}
-                      value={formData.overtimeRule.thresholdMinutes}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          overtimeRule: {
-                            ...formData.overtimeRule,
-                            thresholdMinutes: parseInt(e.target.value) || 0,
-                          },
-                        })
-                      }
-                      className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/10 focus:outline-none focus:border-blue-500/50 disabled:opacity-50 disabled:cursor-not-allowed"
-                    />
-                  </div>
-                  <div>
-                    <label className="block mb-2 text-sm text-gray-400">Multiplier</label>
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.1"
-                      disabled={permissions.isReadOnly}
-                      value={formData.overtimeRule.multiplier}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          overtimeRule: {
-                            ...formData.overtimeRule,
-                            multiplier: parseFloat(e.target.value) || 0,
-                          },
-                        })
-                      }
-                      className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/10 focus:outline-none focus:border-blue-500/50 disabled:opacity-50 disabled:cursor-not-allowed"
-                    />
-                  </div>
-                  <div>
-                    <label className="block mb-2 text-sm text-gray-400">Daily Cap (minutes)</label>
-                    <input
-                      type="number"
-                      min="0"
-                      disabled={permissions.isReadOnly}
-                      value={formData.overtimeRule.dailyCapMinutes}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          overtimeRule: {
-                            ...formData.overtimeRule,
-                            dailyCapMinutes: parseInt(e.target.value) || 0,
-                          },
-                        })
-                      }
-                      className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/10 focus:outline-none focus:border-blue-500/50 disabled:opacity-50 disabled:cursor-not-allowed"
-                    />
-                  </div>
-                  <div>
-                    <label className="block mb-2 text-sm text-gray-400">Weekly Cap (minutes)</label>
-                    <input
-                      type="number"
-                      min="0"
-                      disabled={permissions.isReadOnly}
-                      value={formData.overtimeRule.weeklyCapMinutes}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          overtimeRule: {
-                            ...formData.overtimeRule,
-                            weeklyCapMinutes: parseInt(e.target.value) || 0,
-                          },
-                        })
-                      }
-                      className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/10 focus:outline-none focus:border-blue-500/50 disabled:opacity-50 disabled:cursor-not-allowed"
-                    />
-                  </div>
-                  <div>
-                    <label className="block mb-2 text-sm text-gray-400">Weekend Multiplier</label>
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.1"
-                      disabled={permissions.isReadOnly}
-                      value={formData.overtimeRule.weekendMultiplier}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          overtimeRule: {
-                            ...formData.overtimeRule,
-                            weekendMultiplier: parseFloat(e.target.value) || 0,
-                          },
-                        })
-                      }
-                      className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/10 focus:outline-none focus:border-blue-500/50 disabled:opacity-50 disabled:cursor-not-allowed"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Short Time Rule */}
-              <div className="border-t border-white/10 pt-6">
-                <h3 className="text-lg mb-4">Short Time Rule</h3>
-                <div className="grid md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block mb-2 text-sm text-gray-400">
-                      Minimum Work Minutes
-                    </label>
-                    <input
-                      type="number"
-                      min="0"
-                      disabled={permissions.isReadOnly}
-                      value={formData.shortTimeRule.minimumWorkMinutes}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          shortTimeRule: {
-                            ...formData.shortTimeRule,
-                            minimumWorkMinutes: parseInt(e.target.value) || 0,
-                          },
-                        })
-                      }
-                      className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/10 focus:outline-none focus:border-blue-500/50 disabled:opacity-50 disabled:cursor-not-allowed"
-                    />
-                  </div>
-                  <div>
-                    <label className="block mb-2 text-sm text-gray-400">
-                      Penalty Per Minute
-                    </label>
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      disabled={permissions.isReadOnly}
-                      value={formData.shortTimeRule.penaltyPerMinute}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          shortTimeRule: {
-                            ...formData.shortTimeRule,
-                            penaltyPerMinute: parseFloat(e.target.value) || 0,
-                          },
-                        })
-                      }
-                      className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/10 focus:outline-none focus:border-blue-500/50 disabled:opacity-50 disabled:cursor-not-allowed"
-                    />
-                  </div>
-                  <div>
-                    <label className="block mb-2 text-sm text-gray-400">
-                      Grace Period (minutes)
-                    </label>
-                    <input
-                      type="number"
-                      min="0"
-                      disabled={permissions.isReadOnly}
-                      value={formData.shortTimeRule.gracePeriodMinutes}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          shortTimeRule: {
-                            ...formData.shortTimeRule,
-                            gracePeriodMinutes: parseInt(e.target.value) || 0,
-                          },
-                        })
-                      }
-                      className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/10 focus:outline-none focus:border-blue-500/50 disabled:opacity-50 disabled:cursor-not-allowed"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Weekend Work Rule */}
-              <div className="border-t border-white/10 pt-6">
-                <h3 className="text-lg mb-4">Weekend Work Rule</h3>
-                <div className="grid md:grid-cols-2 gap-4">
-                  <div className="flex items-center space-x-2">
-                    <input
-                      type="checkbox"
-                      disabled={permissions.isReadOnly}
-                      checked={formData.weekendRule.approvalRequired}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          weekendRule: {
-                            ...formData.weekendRule,
-                            approvalRequired: e.target.checked,
-                          },
-                        })
-                      }
-                      className="w-4 h-4 disabled:opacity-50 disabled:cursor-not-allowed"
-                    />
-                    <label className="text-sm">Approval Required</label>
-                  </div>
-                  <div>
-                    <label className="block mb-2 text-sm text-gray-400">
-                      Weekend Multiplier
-                    </label>
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.1"
-                      disabled={permissions.isReadOnly}
-                      value={formData.weekendRule.multiplier}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          weekendRule: {
-                            ...formData.weekendRule,
-                            multiplier: parseFloat(e.target.value) || 1.5,
-                          },
-                        })
-                      }
-                      className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/10 focus:outline-none focus:border-blue-500/50 disabled:opacity-50 disabled:cursor-not-allowed"
-                    />
-                  </div>
-                  <div>
-                    <label className="block mb-2 text-sm text-gray-400">
-                      Special Rate (optional)
-                    </label>
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      disabled={permissions.isReadOnly}
-                      value={formData.weekendRule.specialRate}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          weekendRule: {
-                            ...formData.weekendRule,
-                            specialRate: parseFloat(e.target.value) || 0,
-                          },
-                        })
-                      }
-                      className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/10 focus:outline-none focus:border-blue-500/50 disabled:opacity-50 disabled:cursor-not-allowed"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Punch Policy */}
-              <div className="border-t border-white/10 pt-6">
-                <h3 className="text-lg mb-4">Punch Policy</h3>
-                <div>
-                  <label className="block mb-2 text-sm text-gray-400">
-                    Punch Handling Policy
-                  </label>
-                  <select
-                    value={formData.punchPolicy}
-                    disabled={permissions.isReadOnly}
-                    onChange={(e) => setFormData({ ...formData, punchPolicy: e.target.value })}
-                    className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/10 focus:outline-none focus:border-blue-500/50 text-white appearance-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                    style={{
-                      backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23ffffff' d='M6 9L1 4h10z'/%3E%3C/svg%3E")`,
-                      backgroundRepeat: 'no-repeat',
-                      backgroundPosition: 'right 1rem center',
-                      paddingRight: '2.5rem'
-                    }}
-                  >
-                    <option value="FIRST_LAST" className="bg-slate-800 text-white">First In / Last Out</option>
-                    <option value="MULTIPLE" className="bg-slate-800 text-white">Multiple Punches Allowed</option>
-                    <option value="ONLY_FIRST" className="bg-slate-800 text-white">Only First Punch</option>
-                  </select>
-                  <p className="mt-2 text-xs text-gray-500">
-                    FIRST_LAST: Only first clock-in and last clock-out count. MULTIPLE: All punches are recorded. ONLY_FIRST: Only the first punch is recorded.
-                  </p>
-                </div>
-              </div>
-
-              {/* Other Settings */}
-              <div className="border-t border-white/10 pt-6">
-                <h3 className="text-lg mb-4">Other Settings</h3>
-                <div className="grid md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block mb-2 text-sm text-gray-400">Rounding Rule</label>
-                    <select
-                      value={formData.roundingRule}
-                      disabled={permissions.isReadOnly}
-                      onChange={(e) => setFormData({ ...formData, roundingRule: e.target.value })}
-                      className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/10 focus:outline-none focus:border-blue-500/50 text-white appearance-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                      style={{
-                        backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23ffffff' d='M6 9L1 4h10z'/%3E%3C/svg%3E")`,
-                        backgroundRepeat: 'no-repeat',
-                        backgroundPosition: 'right 1rem center',
-                        paddingRight: '2.5rem'
-                      }}
-                    >
-                      <option value="NONE" className="bg-slate-800 text-white">None</option>
-                      <option value="ROUND_UP" className="bg-slate-800 text-white">Round Up</option>
-                      <option value="ROUND_DOWN" className="bg-slate-800 text-white">Round Down</option>
-                      <option value="ROUND_NEAREST" className="bg-slate-800 text-white">Round Nearest</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block mb-2 text-sm text-gray-400">
-                      Rounding Interval (minutes)
-                    </label>
-                    <input
-                      type="number"
-                      min="1"
-                      disabled={permissions.isReadOnly}
-                      value={formData.roundingIntervalMinutes}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          roundingIntervalMinutes: parseInt(e.target.value) || 15,
-                        })
-                      }
-                      className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/10 focus:outline-none focus:border-blue-500/50 disabled:opacity-50 disabled:cursor-not-allowed"
-                    />
-                  </div>
-                  <div>
-                    <label className="block mb-2 text-sm text-gray-400">Penalty Cap Per Day</label>
-                    <input
-                      type="number"
-                      min="0"
-                      disabled={permissions.isReadOnly}
-                      value={formData.penaltyCapPerDay}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          penaltyCapPerDay: parseFloat(e.target.value) || 0,
-                        })
-                      }
-                      className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/10 focus:outline-none focus:border-blue-500/50 disabled:opacity-50 disabled:cursor-not-allowed"
-                    />
-                  </div>
-                  <div className="flex items-center space-x-2 pt-6">
-                    <input
-                      type="checkbox"
-                      disabled={permissions.isReadOnly || !permissions.canActivate}
-                      checked={formData.active}
-                      onChange={(e) => setFormData({ ...formData, active: e.target.checked })}
-                      className="w-4 h-4 disabled:opacity-50 disabled:cursor-not-allowed"
-                    />
-                    <label className="text-sm">Active</label>
-                  </div>
-                </div>
-              </div>
-
-              {/* Form Actions */}
-              <div className="flex gap-4 pt-4">
+              <div className="flex gap-3 pt-4">
                 <button
                   type="submit"
-                  disabled={loading || permissions.isReadOnly || (editingId && !permissions.canEdit) || (!editingId && !permissions.canCreate)}
-                  className="px-6 py-3 bg-gradient-to-r from-blue-600 to-cyan-600 rounded-lg hover:from-blue-500 hover:to-cyan-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                  className="flex-1 px-6 py-3 bg-gradient-to-r from-teal-500 to-emerald-500 rounded-xl hover:from-teal-400 hover:to-emerald-400 transition-all"
                 >
-                  <Save className="w-5 h-5" />
-                  {loading ? "Saving..." : editingId ? "Update Policy" : "Create Policy"}
+                  {editingPolicy ? 'Update Policy' : 'Create Policy'}
                 </button>
                 <button
                   type="button"
-                  onClick={resetForm}
-                  className="px-6 py-3 bg-white/10 border border-white/20 rounded-lg hover:bg-white/20 transition-all"
+                  onClick={() => {
+                    setShowModal(false);
+                    setEditingPolicy(null);
+                    resetForm();
+                    setError(null);
+                    setSuccess(null);
+                  }}
+                  className="px-6 py-3 bg-white/5 border border-white/10 rounded-xl hover:bg-white/10 transition-all"
                 >
                   Cancel
                 </button>
               </div>
             </form>
           </div>
-        )}
-
-        {/* Policies List */}
-        {permissions.canView && (
-          <div className="bg-white/5 border border-white/10 rounded-2xl p-6 backdrop-blur-xl">
-            <h2 className="text-2xl font-light mb-6">Existing Policies</h2>
-            {loading && !policies.length ? (
-              <div className="text-center py-12 text-gray-400">Loading policies...</div>
-            ) : policies.length === 0 ? (
-              <div className="text-center py-12 text-gray-400">
-                {permissions.canCreate 
-                  ? "No policies found. Create one to get started."
-                  : "No policies found."}
-              </div>
-            ) : (
-            <div className="space-y-4">
-              {policies.map((policy) => (
-                <div
-                  key={policy._id}
-                  className="bg-white/5 border border-white/10 rounded-lg p-4 hover:border-white/20 transition-all"
-                >
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-3 mb-2">
-                        <h3 className="text-xl font-medium">{policy.name}</h3>
-                        <span
-                          className={`px-3 py-1 rounded-full text-sm ${
-                            policy.active
-                              ? "bg-green-500/20 text-green-400"
-                              : "bg-gray-500/20 text-gray-400"
-                          }`}
-                        >
-                          {policy.active ? "Active" : "Inactive"}
-                        </span>
-                        <span className="px-3 py-1 rounded-full text-sm bg-blue-500/20 text-blue-400">
-                          {policy.scope}
-                        </span>
-                      </div>
-                      {policy.description && (
-                        <p className="text-gray-400 mb-2">{policy.description}</p>
-                      )}
-                      <div className="text-sm text-gray-400">
-                        {policy.latenessRule && (
-                          <span>Lateness: {policy.latenessRule.gracePeriodMinutes}min grace, </span>
-                        )}
-                        {policy.overtimeRule && (
-                          <span>
-                            Overtime: {policy.overtimeRule.thresholdMinutes}min threshold,{" "}
-                            {policy.overtimeRule.multiplier}x multiplier
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                    <div className="flex gap-2">
-                      {permissions.canEdit && (
-                        <button
-                          onClick={() => handleEdit(policy)}
-                          className="p-2 hover:bg-white/10 rounded-lg transition-all"
-                          title="Edit"
-                        >
-                          <Edit className="w-5 h-5" />
-                        </button>
-                      )}
-                      {permissions.canDelete && (
-                        <button
-                          onClick={() => handleDelete(policy._id)}
-                          className="p-2 hover:bg-red-500/20 rounded-lg transition-all text-red-400"
-                          title="Delete"
-                        >
-                          <Trash2 className="w-5 h-5" />
-                        </button>
-                      )}
-                      {permissions.isReadOnly && (
-                        <div className="p-2 text-gray-500" title="Read-only access">
-                          <Eye className="w-5 h-5" />
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-          </div>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
-
-  return content;
 }

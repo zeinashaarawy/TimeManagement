@@ -1,24 +1,25 @@
-import { useState, useEffect } from "react";
-import Link from "next/link";
-import { ArrowLeft, Plus, Edit, Users, X } from "lucide-react";
-import { shiftAssignmentApi, shiftTemplateApi } from "../../../lib/api";
-import { getCurrentUserRole, type UserRole } from "../../../utils/auth";
+import React, { useState, useEffect } from 'react';
+import { 
+  assignShift, 
+  bulkAssignShift, 
+  getAssignments, 
+  updateAssignmentStatus, 
+  renewAssignment,
+  getShiftTemplates 
+} from '../../../services/timeManagementApi';
 
 interface ShiftAssignment {
-  _id: string;
-  shiftTemplateId: string | { _id: string; name: string; [key: string]: any };
+  _id?: string;
+  shiftTemplateId: string | { _id: string; name: string; type: string };
   employeeId?: string;
   departmentId?: string;
   positionId?: string;
   effectiveFrom: string;
-  effectiveTo?: string | null;
-  assignedBy: string;
-  source: string;
+  effectiveTo: string;
   status: string;
-  metadata?: {
-    notes?: string;
-    reason?: string;
-  };
+  reason?: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 interface ShiftTemplate {
@@ -27,349 +28,718 @@ interface ShiftTemplate {
   type: string;
 }
 
-export default function ShiftsAssignments({ asTab = false }: { asTab?: boolean } = {}) {
+export default function ShiftsAssignments() {
   const [assignments, setAssignments] = useState<ShiftAssignment[]>([]);
   const [templates, setTemplates] = useState<ShiftTemplate[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [userRole, setUserRole] = useState<UserRole | null>(null);
+  const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
-  const [showStatusModal, setShowStatusModal] = useState(false);
+  const [showBulkModal, setShowBulkModal] = useState(false);
+  const [showRenewModal, setShowRenewModal] = useState(false);
   const [selectedAssignment, setSelectedAssignment] = useState<ShiftAssignment | null>(null);
+  const [formData, setFormData] = useState({
+    shiftTemplateId: '',
+    assignmentType: 'individual' as 'individual' | 'department' | 'position',
+    employeeId: '',
+    departmentId: '',
+    positionId: '',
+    effectiveFrom: '',
+    effectiveTo: '',
+    reason: '',
+  });
+  const [bulkFormData, setBulkFormData] = useState({
+    shiftTemplateId: '',
+    assignmentType: 'department' as 'department' | 'position',
+    departmentId: '',
+    positionId: '',
+    employeeIds: [] as string[],
+    effectiveFrom: '',
+    effectiveTo: '',
+    reason: '',
+  });
+  const [filters, setFilters] = useState({
+    status: '',
+    employeeId: '',
+    departmentId: '',
+    positionId: '',
+  });
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
 
   useEffect(() => {
-    const role = getCurrentUserRole();
-    setUserRole(role);
-    loadTemplates();
-    loadAssignments();
-  }, []);
+    loadData();
+  }, [filters]);
 
-  const loadTemplates = async () => {
+  const loadData = async () => {
     try {
-      const response = await shiftTemplateApi.getAll();
-      const data = response.data;
-      setTemplates(Array.isArray(data) ? data : []);
+      setLoading(true);
+      const [assignmentsRes, templatesRes] = await Promise.all([
+        getAssignments(filters),
+        getShiftTemplates(),
+      ]);
+      setAssignments(assignmentsRes.data || []);
+      setTemplates(templatesRes.data || []);
     } catch (err: any) {
-      console.error("Error loading templates:", err);
-    }
-  };
-
-  const loadAssignments = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const response = await shiftAssignmentApi.query({});
-      setAssignments(response.data || []);
-    } catch (err: any) {
-      console.error("Error loading assignments:", err);
-      setError(err.response?.data?.message || err.message || "Failed to load assignments");
+      setError(err.message || 'Failed to load data');
     } finally {
       setLoading(false);
     }
   };
-
-  const handleUpdateStatus = (assignment: ShiftAssignment) => {
-    setSelectedAssignment(assignment);
-    setShowStatusModal(true);
-  };
-
-  const getTemplateName = (templateIdOrObj: string | { _id: string; name: string; [key: string]: any }) => {
-    if (typeof templateIdOrObj === 'object' && templateIdOrObj !== null) {
-      return templateIdOrObj.name || 'Unknown';
-    }
-    const template = templates.find(t => t._id === templateIdOrObj);
-    return template?.name || 'Unknown';
-  };
-
-  const canEdit = userRole === 'HR Manager' || userRole === 'System Admin' || userRole === 'HR Admin';
-
-  const content = (
-    <div className="max-w-7xl mx-auto">
-      {/* Header */}
-      {!asTab && (
-        <div className="mb-8">
-          <Link href="/subsystems/time-management">
-            <button className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors mb-4">
-              <ArrowLeft className="w-5 h-5" />
-              <span>Back to Time Management</span>
-            </button>
-          </Link>
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h1 className="text-4xl lg:text-5xl font-light mb-2">Shift Assignments</h1>
-              <p className="text-gray-400">Manage shift assignments for employees, departments, and positions</p>
-            </div>
-            {canEdit && (
-              <button
-                onClick={() => setShowModal(true)}
-                className="px-6 py-3 bg-gradient-to-r from-teal-600 to-emerald-600 rounded-xl text-white hover:opacity-90 transition-opacity flex items-center gap-2"
-              >
-                <Plus className="w-5 h-5" />
-                Assign Shift
-              </button>
-            )}
-          </div>
-        </div>
-      )}
-
-      {asTab && canEdit && (
-        <div className="mb-6 flex justify-end">
-          <button
-            onClick={() => setShowModal(true)}
-            className="px-6 py-3 bg-gradient-to-r from-teal-600 to-emerald-600 rounded-xl text-white hover:opacity-90 transition-opacity flex items-center gap-2"
-          >
-            <Plus className="w-5 h-5" />
-            Assign Shift
-          </button>
-        </div>
-      )}
-
-      {/* Error Message */}
-      {error && (
-        <div className="mb-6 p-4 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400">
-          {error}
-        </div>
-      )}
-
-      {/* Loading State */}
-      {loading && (
-        <div className="text-center py-20">
-          <div className="inline-block animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-teal-500"></div>
-          <p className="mt-4 text-gray-400">Loading assignments...</p>
-        </div>
-      )}
-
-      {/* Empty State */}
-      {!loading && assignments.length === 0 && (
-        <div className="text-center py-20">
-          <div className="relative inline-block mb-4">
-            <div className="absolute inset-0 bg-gradient-to-br from-teal-500/20 to-emerald-500/20 rounded-2xl blur-xl" />
-            <div className="relative bg-white/5 border border-white/10 p-8 rounded-2xl">
-              <Users className="w-12 h-12 text-gray-400 mx-auto" />
-            </div>
-          </div>
-          <h3 className="text-xl text-gray-300 mb-2">No Assignments</h3>
-          <p className="text-gray-500">Assign shifts to employees, departments, or positions</p>
-        </div>
-      )}
-
-      {/* Assignments List */}
-      {!loading && assignments.length > 0 && (
-        <div className="space-y-4">
-          {assignments.map((assignment) => (
-            <div key={assignment._id} className="group relative">
-              <div className="absolute inset-0 bg-gradient-to-br from-teal-500/20 to-emerald-500/20 rounded-3xl blur-xl opacity-0 group-hover:opacity-30 transition-all" />
-              <div className="relative bg-white/5 border border-white/10 backdrop-blur-xl p-6 rounded-3xl hover:border-white/20 transition-all">
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <h3 className="text-lg text-white mb-2">{getTemplateName(assignment.shiftTemplateId)}</h3>
-                    <div className="grid sm:grid-cols-2 gap-4 text-sm text-gray-400">
-                      <div>
-                        <span className="text-gray-500">Assignment Type: </span>
-                        {assignment.employeeId && <span>Employee</span>}
-                        {assignment.departmentId && <span>Department</span>}
-                        {assignment.positionId && <span>Position</span>}
-                      </div>
-                      <div>
-                        <span className="text-gray-500">Effective From: </span>
-                        <span>{new Date(assignment.effectiveFrom).toLocaleDateString()}</span>
-                      </div>
-                      {assignment.effectiveTo && (
-                        <div>
-                          <span className="text-gray-500">Effective To: </span>
-                          <span>{new Date(assignment.effectiveTo).toLocaleDateString()}</span>
-                        </div>
-                      )}
-                      <div>
-                        <span className="text-gray-500">Source: </span>
-                        <span className="capitalize">{assignment.source}</span>
-                      </div>
-                    </div>
-                    {assignment.metadata?.reason && (
-                      <div className="mt-3 text-sm text-gray-400">
-                        <span className="text-gray-500">Reason: </span>
-                        {assignment.metadata.reason}
-                      </div>
-                    )}
-                  </div>
-                  <div className="ml-4 flex items-center gap-3">
-                    <span className={`px-3 py-1 rounded-full text-xs ${
-                      assignment.status === 'Active' ? 'bg-green-500/20 text-green-400 border border-green-500/30' :
-                      assignment.status === 'Inactive' ? 'bg-gray-500/20 text-gray-400 border border-gray-500/30' :
-                      assignment.status === 'Approved' ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30' :
-                      'bg-red-500/20 text-red-400 border border-red-500/30'
-                    }`}>
-                      {assignment.status}
-                    </span>
-                    {canEdit && (
-                      <button
-                        onClick={() => handleUpdateStatus(assignment)}
-                        className="p-2 hover:bg-white/10 rounded-lg transition-colors"
-                        title="Update Status"
-                      >
-                        <Edit className="w-4 h-4 text-gray-400 hover:text-teal-400" />
-                      </button>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Assignment Modal - Simplified for now */}
-      {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-          <div className="relative w-full max-w-2xl bg-slate-900 border border-white/10 rounded-3xl shadow-2xl m-4 p-6">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-2xl text-white">Assign Shift</h2>
-              <button
-                onClick={() => setShowModal(false)}
-                className="p-2 hover:bg-white/10 rounded-lg transition-colors"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <p className="text-gray-400">Assignment form will be implemented here. For now, use the API directly.</p>
-            <button
-              onClick={() => setShowModal(false)}
-              className="mt-4 px-6 py-3 bg-white/5 border border-white/10 rounded-xl text-white hover:bg-white/10 transition-colors"
-            >
-              Close
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Status Update Modal */}
-      {showStatusModal && selectedAssignment && (
-        <StatusUpdateModal
-          assignment={selectedAssignment}
-          onClose={() => {
-            setShowStatusModal(false);
-            setSelectedAssignment(null);
-          }}
-          onSuccess={loadAssignments}
-        />
-      )}
-    </div>
-  );
-
-  return asTab ? content : (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-blue-950 to-slate-900 text-white px-6 py-12">
-      {content}
-    </div>
-  );
-}
-
-// Status Update Modal Component
-function StatusUpdateModal({
-  assignment,
-  onClose,
-  onSuccess,
-}: {
-  assignment: ShiftAssignment;
-  onClose: () => void;
-  onSuccess: () => void;
-}) {
-  const [status, setStatus] = useState(assignment.status);
-  const [reason, setReason] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
     setError(null);
+    setSuccess(null);
 
     try {
-      const payload: any = { status };
-      if (reason) payload.reason = reason;
+      const assignmentData: any = {
+        shiftTemplateId: formData.shiftTemplateId,
+        effectiveFrom: formData.effectiveFrom,
+        effectiveTo: formData.effectiveTo,
+        reason: formData.reason || undefined,
+      };
 
-      await shiftAssignmentApi.updateStatus(assignment._id, payload);
-      onSuccess();
-      onClose();
+      if (formData.assignmentType === 'individual') {
+        assignmentData.employeeId = formData.employeeId;
+      } else if (formData.assignmentType === 'department') {
+        assignmentData.departmentId = formData.departmentId;
+      } else if (formData.assignmentType === 'position') {
+        assignmentData.positionId = formData.positionId;
+      }
+
+      await assignShift(assignmentData);
+      setSuccess('Shift assigned successfully');
+      setShowModal(false);
+      setFormData({
+        shiftTemplateId: '',
+        assignmentType: 'individual',
+        employeeId: '',
+        departmentId: '',
+        positionId: '',
+        effectiveFrom: '',
+        effectiveTo: '',
+        reason: '',
+      });
+      loadData();
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to update status');
-    } finally {
-      setLoading(false);
+      setError(err.response?.data?.message || err.message || 'Failed to assign shift');
     }
   };
 
+  const handleBulkSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setSuccess(null);
+
+    try {
+      const bulkData: any = {
+        shiftTemplateId: bulkFormData.shiftTemplateId,
+        effectiveFrom: bulkFormData.effectiveFrom,
+        effectiveTo: bulkFormData.effectiveTo,
+        reason: bulkFormData.reason || undefined,
+      };
+
+      if (bulkFormData.assignmentType === 'department') {
+        bulkData.departmentId = bulkFormData.departmentId;
+      } else if (bulkFormData.assignmentType === 'position') {
+        bulkData.positionId = bulkFormData.positionId;
+      }
+
+      if (bulkFormData.employeeIds.length > 0) {
+        bulkData.employeeIds = bulkFormData.employeeIds;
+      }
+
+      await bulkAssignShift(bulkData);
+      setSuccess('Bulk shift assignment completed successfully');
+      setShowBulkModal(false);
+      setBulkFormData({
+        shiftTemplateId: '',
+        assignmentType: 'department',
+        departmentId: '',
+        positionId: '',
+        employeeIds: [],
+        effectiveFrom: '',
+        effectiveTo: '',
+        reason: '',
+      });
+      loadData();
+    } catch (err: any) {
+      setError(err.response?.data?.message || err.message || 'Failed to bulk assign shifts');
+    }
+  };
+
+  const handleStatusUpdate = async (id: string, status: string) => {
+    try {
+      await updateAssignmentStatus(id, { status, reason: 'Status updated' });
+      setSuccess('Assignment status updated successfully');
+      loadData();
+    } catch (err: any) {
+      setError(err.response?.data?.message || err.message || 'Failed to update status');
+    }
+  };
+
+  const handleRenew = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedAssignment?._id) return;
+
+    setError(null);
+    setSuccess(null);
+
+    try {
+      await renewAssignment(selectedAssignment._id, {
+        effectiveTo: formData.effectiveTo,
+        reason: formData.reason || 'Assignment renewed',
+      });
+      setSuccess('Assignment renewed successfully');
+      setShowRenewModal(false);
+      setSelectedAssignment(null);
+      loadData();
+    } catch (err: any) {
+      setError(err.response?.data?.message || err.message || 'Failed to renew assignment');
+    }
+  };
+
+  const getStatusBadge = (status: string) => {
+    const colors: Record<string, string> = {
+      ACTIVE: 'bg-green-500/20 text-green-300 border-green-400/30',
+      INACTIVE: 'bg-gray-500/20 text-gray-300 border-gray-400/30',
+      EXPIRED: 'bg-red-500/20 text-red-300 border-red-400/30',
+      PENDING: 'bg-yellow-500/20 text-yellow-300 border-yellow-400/30',
+    };
+    return colors[status] || colors.INACTIVE;
+  };
+
+  const getAssignmentTarget = (assignment: ShiftAssignment) => {
+    if (assignment.employeeId) return `Employee: ${assignment.employeeId}`;
+    if (assignment.departmentId) return `Department: ${assignment.departmentId}`;
+    if (assignment.positionId) return `Position: ${assignment.positionId}`;
+    return 'Unknown';
+  };
+
+  const getTemplateName = (templateId: any) => {
+    if (typeof templateId === 'object' && templateId?.name) {
+      return templateId.name;
+    }
+    const template = templates.find(t => t._id === templateId);
+    return template?.name || 'Unknown Template';
+  };
+
+  if (loading) {
+    return (
+      <div className="w-full">
+        <div className="flex items-center justify-center py-12">
+          <div className="animate-pulse">
+            <div className="w-16 h-16 border-4 border-cyan-500/30 border-t-cyan-500 rounded-full"></div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-      <div className="relative w-full max-w-md bg-slate-900 border border-white/10 rounded-3xl shadow-2xl m-4">
-        <div className="sticky top-0 bg-slate-900/95 backdrop-blur-xl border-b border-white/10 px-6 py-4 flex items-center justify-between">
-          <h2 className="text-2xl text-white">Update Assignment Status</h2>
+    <div className="w-full">
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h2 className="text-2xl font-semibold mb-2 text-white">Shift Assignments</h2>
+          <p className="text-gray-400 text-sm">Assign shifts to employees, departments, or positions</p>
+        </div>
+        <div className="flex gap-3">
           <button
-            onClick={onClose}
-            className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+            onClick={() => setShowBulkModal(true)}
+            className="px-6 py-3 bg-white/5 border border-white/10 rounded-xl hover:bg-white/10 transition-all"
           >
-            <X className="w-5 h-5" />
+            Bulk Assign
+          </button>
+          <button
+            onClick={() => setShowModal(true)}
+            className="px-6 py-3 bg-gradient-to-r from-teal-500 to-emerald-500 rounded-xl hover:from-teal-400 hover:to-emerald-400 transition-all"
+          >
+            + Assign Shift
           </button>
         </div>
+      </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-6">
-          {error && (
-            <div className="bg-red-500/10 border border-red-500/20 text-red-400 px-4 py-3 rounded-xl">
-              {error}
-            </div>
-          )}
+      {/* Messages */}
+      {error && (
+        <div className="mb-4 p-4 bg-red-500/10 border border-red-500/20 rounded-xl text-red-300">
+          {error}
+        </div>
+      )}
+      {success && (
+        <div className="mb-4 p-4 bg-green-500/10 border border-green-500/20 rounded-xl text-green-300">
+          {success}
+        </div>
+      )}
 
+      {/* Filters */}
+      <div className="mb-6 bg-white/5 border border-white/10 rounded-2xl p-4">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div>
-            <label className="block text-sm text-gray-400 mb-2">Current Status</label>
-            <div className="px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white">
-              {assignment.status}
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-sm text-gray-400 mb-2">New Status *</label>
+            <label className="block text-sm text-gray-400 mb-2">Status</label>
             <select
-              required
-              value={status}
-              onChange={(e) => setStatus(e.target.value)}
-              className="w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:border-teal-500/50"
+              value={filters.status}
+              onChange={(e) => setFilters({ ...filters, status: e.target.value })}
+              className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/10 text-white"
             >
-              <option value="Active">Active</option>
-              <option value="Inactive">Inactive</option>
-              <option value="Approved">Approved</option>
-              <option value="Cancelled">Cancelled</option>
-              <option value="Expired">Expired</option>
+              <option value="">All Statuses</option>
+              <option value="ACTIVE">Active</option>
+              <option value="INACTIVE">Inactive</option>
+              <option value="EXPIRED">Expired</option>
+              <option value="PENDING">Pending</option>
             </select>
           </div>
-
           <div>
-            <label className="block text-sm text-gray-400 mb-2">Reason (Optional)</label>
-            <textarea
-              value={reason}
-              onChange={(e) => setReason(e.target.value)}
-              rows={3}
-              placeholder="Enter reason for status change..."
-              className="w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:border-teal-500/50"
+            <label className="block text-sm text-gray-400 mb-2">Employee ID</label>
+            <input
+              type="text"
+              value={filters.employeeId}
+              onChange={(e) => setFilters({ ...filters, employeeId: e.target.value })}
+              className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/10 text-white"
+              placeholder="Filter by employee..."
             />
           </div>
-
-          <div className="flex gap-4 pt-4">
-            <button
-              type="button"
-              onClick={onClose}
-              className="flex-1 px-6 py-3 bg-white/5 border border-white/10 rounded-xl text-white hover:bg-white/10 transition-colors"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={loading}
-              className="flex-1 px-6 py-3 bg-gradient-to-r from-teal-600 to-emerald-600 rounded-xl text-white hover:opacity-90 transition-opacity disabled:opacity-50"
-            >
-              {loading ? 'Updating...' : 'Update Status'}
-            </button>
+          <div>
+            <label className="block text-sm text-gray-400 mb-2">Department ID</label>
+            <input
+              type="text"
+              value={filters.departmentId}
+              onChange={(e) => setFilters({ ...filters, departmentId: e.target.value })}
+              className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/10 text-white"
+              placeholder="Filter by department..."
+            />
           </div>
-        </form>
+          <div>
+            <label className="block text-sm text-gray-400 mb-2">Position ID</label>
+            <input
+              type="text"
+              value={filters.positionId}
+              onChange={(e) => setFilters({ ...filters, positionId: e.target.value })}
+              className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/10 text-white"
+              placeholder="Filter by position..."
+            />
+          </div>
+        </div>
       </div>
+
+      {/* Assignments Table */}
+      <div className="bg-white/5 border border-white/10 rounded-2xl overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead className="bg-white/5 border-b border-white/10">
+              <tr>
+                <th className="px-6 py-3 text-left text-sm font-semibold text-white">Shift Template</th>
+                <th className="px-6 py-3 text-left text-sm font-semibold text-white">Assigned To</th>
+                <th className="px-6 py-3 text-left text-sm font-semibold text-white">From</th>
+                <th className="px-6 py-3 text-left text-sm font-semibold text-white">To</th>
+                <th className="px-6 py-3 text-left text-sm font-semibold text-white">Status</th>
+                <th className="px-6 py-3 text-left text-sm font-semibold text-white">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-white/10">
+              {assignments.map((assignment) => (
+                <tr key={assignment._id} className="hover:bg-white/5">
+                  <td className="px-6 py-4 text-white">
+                    {getTemplateName(assignment.shiftTemplateId)}
+                  </td>
+                  <td className="px-6 py-4 text-white/70 text-sm">
+                    {getAssignmentTarget(assignment)}
+                  </td>
+                  <td className="px-6 py-4 text-white/70 text-sm">
+                    {new Date(assignment.effectiveFrom).toLocaleDateString()}
+                  </td>
+                  <td className="px-6 py-4 text-white/70 text-sm">
+                    {new Date(assignment.effectiveTo).toLocaleDateString()}
+                  </td>
+                  <td className="px-6 py-4">
+                    <span className={`text-xs px-2 py-1 rounded-full border ${getStatusBadge(assignment.status)}`}>
+                      {assignment.status}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4">
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => {
+                          setSelectedAssignment(assignment);
+                          setFormData({
+                            ...formData,
+                            effectiveTo: assignment.effectiveTo,
+                          });
+                          setShowRenewModal(true);
+                        }}
+                        className="px-3 py-1 bg-blue-500/10 border border-blue-500/20 rounded-lg text-blue-300 text-xs hover:bg-blue-500/20"
+                      >
+                        Renew
+                      </button>
+                      <button
+                        onClick={() => handleStatusUpdate(assignment._id!, assignment.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE')}
+                        className="px-3 py-1 bg-white/5 border border-white/10 rounded-lg text-white/70 text-xs hover:bg-white/10"
+                      >
+                        {assignment.status === 'ACTIVE' ? 'Deactivate' : 'Activate'}
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        {assignments.length === 0 && (
+          <div className="text-center py-12">
+            <p className="text-gray-400">No shift assignments found</p>
+          </div>
+        )}
+      </div>
+
+      {/* Assign Shift Modal */}
+      {showModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+          <div className="bg-gradient-to-br from-slate-900 via-blue-950 to-slate-900 border border-white/10 rounded-3xl p-8 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-2xl font-semibold text-white">Assign Shift</h3>
+              <button
+                onClick={() => {
+                  setShowModal(false);
+                  setError(null);
+                  setSuccess(null);
+                }}
+                className="p-2 hover:bg-white/10 rounded-lg"
+              >
+                <span className="text-white text-xl">×</span>
+              </button>
+            </div>
+
+            <form onSubmit={handleSubmit} className="space-y-6">
+              <div>
+                <label className="block text-sm text-gray-400 mb-2">Shift Template *</label>
+                <select
+                  required
+                  value={formData.shiftTemplateId}
+                  onChange={(e) => setFormData({ ...formData, shiftTemplateId: e.target.value })}
+                  className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/10 text-white"
+                >
+                  <option value="">Select a shift template</option>
+                  {templates.map((template) => (
+                    <option key={template._id} value={template._id}>
+                      {template.name} ({template.type})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm text-gray-400 mb-2">Assignment Type *</label>
+                <select
+                  required
+                  value={formData.assignmentType}
+                  onChange={(e) => setFormData({ ...formData, assignmentType: e.target.value as any })}
+                  className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/10 text-white"
+                >
+                  <option value="individual">Individual Employee</option>
+                  <option value="department">Department</option>
+                  <option value="position">Position</option>
+                </select>
+              </div>
+
+              {formData.assignmentType === 'individual' && (
+                <div>
+                  <label className="block text-sm text-gray-400 mb-2">Employee ID *</label>
+                  <input
+                    type="text"
+                    required
+                    value={formData.employeeId}
+                    onChange={(e) => setFormData({ ...formData, employeeId: e.target.value })}
+                    className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/10 text-white"
+                    placeholder="Enter employee ID"
+                  />
+                </div>
+              )}
+
+              {formData.assignmentType === 'department' && (
+                <div>
+                  <label className="block text-sm text-gray-400 mb-2">Department ID *</label>
+                  <input
+                    type="text"
+                    required
+                    value={formData.departmentId}
+                    onChange={(e) => setFormData({ ...formData, departmentId: e.target.value })}
+                    className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/10 text-white"
+                    placeholder="Enter department ID"
+                  />
+                </div>
+              )}
+
+              {formData.assignmentType === 'position' && (
+                <div>
+                  <label className="block text-sm text-gray-400 mb-2">Position ID *</label>
+                  <input
+                    type="text"
+                    required
+                    value={formData.positionId}
+                    onChange={(e) => setFormData({ ...formData, positionId: e.target.value })}
+                    className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/10 text-white"
+                    placeholder="Enter position ID"
+                  />
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm text-gray-400 mb-2">Effective From *</label>
+                  <input
+                    type="date"
+                    required
+                    value={formData.effectiveFrom}
+                    onChange={(e) => setFormData({ ...formData, effectiveFrom: e.target.value })}
+                    className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/10 text-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-400 mb-2">Effective To *</label>
+                  <input
+                    type="date"
+                    required
+                    value={formData.effectiveTo}
+                    onChange={(e) => setFormData({ ...formData, effectiveTo: e.target.value })}
+                    className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/10 text-white"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm text-gray-400 mb-2">Reason</label>
+                <textarea
+                  value={formData.reason}
+                  onChange={(e) => setFormData({ ...formData, reason: e.target.value })}
+                  className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/10 text-white"
+                  rows={3}
+                  placeholder="Optional reason for assignment..."
+                />
+              </div>
+
+              <div className="flex gap-3 pt-4">
+                <button
+                  type="submit"
+                  className="flex-1 px-6 py-3 bg-gradient-to-r from-teal-500 to-emerald-500 rounded-xl hover:from-teal-400 hover:to-emerald-400 transition-all"
+                >
+                  Assign Shift
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowModal(false);
+                    setError(null);
+                    setSuccess(null);
+                  }}
+                  className="px-6 py-3 bg-white/5 border border-white/10 rounded-xl hover:bg-white/10 transition-all"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk Assign Modal */}
+      {showBulkModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+          <div className="bg-gradient-to-br from-slate-900 via-blue-950 to-slate-900 border border-white/10 rounded-3xl p-8 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-2xl font-semibold text-white">Bulk Assign Shift</h3>
+              <button
+                onClick={() => {
+                  setShowBulkModal(false);
+                  setError(null);
+                  setSuccess(null);
+                }}
+                className="p-2 hover:bg-white/10 rounded-lg"
+              >
+                <span className="text-white text-xl">×</span>
+              </button>
+            </div>
+
+            <form onSubmit={handleBulkSubmit} className="space-y-6">
+              <div>
+                <label className="block text-sm text-gray-400 mb-2">Shift Template *</label>
+                <select
+                  required
+                  value={bulkFormData.shiftTemplateId}
+                  onChange={(e) => setBulkFormData({ ...bulkFormData, shiftTemplateId: e.target.value })}
+                  className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/10 text-white"
+                >
+                  <option value="">Select a shift template</option>
+                  {templates.map((template) => (
+                    <option key={template._id} value={template._id}>
+                      {template.name} ({template.type})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm text-gray-400 mb-2">Assignment Type *</label>
+                <select
+                  required
+                  value={bulkFormData.assignmentType}
+                  onChange={(e) => setBulkFormData({ ...bulkFormData, assignmentType: e.target.value as any })}
+                  className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/10 text-white"
+                >
+                  <option value="department">Department</option>
+                  <option value="position">Position</option>
+                </select>
+              </div>
+
+              {bulkFormData.assignmentType === 'department' && (
+                <div>
+                  <label className="block text-sm text-gray-400 mb-2">Department ID *</label>
+                  <input
+                    type="text"
+                    required
+                    value={bulkFormData.departmentId}
+                    onChange={(e) => setBulkFormData({ ...bulkFormData, departmentId: e.target.value })}
+                    className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/10 text-white"
+                    placeholder="Enter department ID"
+                  />
+                </div>
+              )}
+
+              {bulkFormData.assignmentType === 'position' && (
+                <div>
+                  <label className="block text-sm text-gray-400 mb-2">Position ID *</label>
+                  <input
+                    type="text"
+                    required
+                    value={bulkFormData.positionId}
+                    onChange={(e) => setBulkFormData({ ...bulkFormData, positionId: e.target.value })}
+                    className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/10 text-white"
+                    placeholder="Enter position ID"
+                  />
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm text-gray-400 mb-2">Effective From *</label>
+                  <input
+                    type="date"
+                    required
+                    value={bulkFormData.effectiveFrom}
+                    onChange={(e) => setBulkFormData({ ...bulkFormData, effectiveFrom: e.target.value })}
+                    className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/10 text-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-400 mb-2">Effective To *</label>
+                  <input
+                    type="date"
+                    required
+                    value={bulkFormData.effectiveTo}
+                    onChange={(e) => setBulkFormData({ ...bulkFormData, effectiveTo: e.target.value })}
+                    className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/10 text-white"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm text-gray-400 mb-2">Reason</label>
+                <textarea
+                  value={bulkFormData.reason}
+                  onChange={(e) => setBulkFormData({ ...bulkFormData, reason: e.target.value })}
+                  className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/10 text-white"
+                  rows={3}
+                  placeholder="Optional reason for bulk assignment..."
+                />
+              </div>
+
+              <div className="flex gap-3 pt-4">
+                <button
+                  type="submit"
+                  className="flex-1 px-6 py-3 bg-gradient-to-r from-teal-500 to-emerald-500 rounded-xl hover:from-teal-400 hover:to-emerald-400 transition-all"
+                >
+                  Bulk Assign
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowBulkModal(false);
+                    setError(null);
+                    setSuccess(null);
+                  }}
+                  className="px-6 py-3 bg-white/5 border border-white/10 rounded-xl hover:bg-white/10 transition-all"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Renew Modal */}
+      {showRenewModal && selectedAssignment && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+          <div className="bg-gradient-to-br from-slate-900 via-blue-950 to-slate-900 border border-white/10 rounded-3xl p-8 max-w-md w-full">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-2xl font-semibold text-white">Renew Assignment</h3>
+              <button
+                onClick={() => {
+                  setShowRenewModal(false);
+                  setSelectedAssignment(null);
+                  setError(null);
+                  setSuccess(null);
+                }}
+                className="p-2 hover:bg-white/10 rounded-lg"
+              >
+                <span className="text-white text-xl">×</span>
+              </button>
+            </div>
+
+            <form onSubmit={handleRenew} className="space-y-6">
+              <div>
+                <label className="block text-sm text-gray-400 mb-2">New Effective To *</label>
+                <input
+                  type="date"
+                  required
+                  value={formData.effectiveTo}
+                  onChange={(e) => setFormData({ ...formData, effectiveTo: e.target.value })}
+                  className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/10 text-white"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm text-gray-400 mb-2">Reason</label>
+                <textarea
+                  value={formData.reason}
+                  onChange={(e) => setFormData({ ...formData, reason: e.target.value })}
+                  className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/10 text-white"
+                  rows={3}
+                  placeholder="Reason for renewal..."
+                />
+              </div>
+
+              <div className="flex gap-3 pt-4">
+                <button
+                  type="submit"
+                  className="flex-1 px-6 py-3 bg-gradient-to-r from-teal-500 to-emerald-500 rounded-xl hover:from-teal-400 hover:to-emerald-400 transition-all"
+                >
+                  Renew
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowRenewModal(false);
+                    setSelectedAssignment(null);
+                    setError(null);
+                    setSuccess(null);
+                  }}
+                  className="px-6 py-3 bg-white/5 border border-white/10 rounded-xl hover:bg-white/10 transition-all"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
-
