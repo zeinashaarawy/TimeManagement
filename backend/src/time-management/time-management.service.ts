@@ -46,19 +46,11 @@ export class TimeManagementService {
     private readonly scheduleHelperService: ScheduleHelperService,
     @Inject(forwardRef(() => RepeatedLatenessService))
     private readonly repeatedLatenessService: RepeatedLatenessService,
-  ) {}
-
-  constructor(
-    @InjectModel(AttendanceRecord.name)
-    private attendanceModel: Model<AttendanceRecordDocument>,
-    @InjectModel(TimeException.name)
-    private exceptionModel: Model<TimeExceptionDocument>,
-    @InjectModel(NotificationLog.name)
-    private notificationModel: Model<NotificationLogDocument>,
-    private readonly repeatedLatenessService: RepeatedLatenessService,
     @Inject(forwardRef(() => PermissionValidationService))
+    @Optional()
     private readonly permissionValidationService?: PermissionValidationService,
     @Inject(forwardRef(() => DeviceSyncService))
+    @Optional()
     private readonly deviceSyncService?: DeviceSyncService,
   ) {}
 

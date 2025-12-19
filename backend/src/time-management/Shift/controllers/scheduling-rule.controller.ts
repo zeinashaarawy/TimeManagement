@@ -24,19 +24,20 @@ export class SchedulingRuleController {
   constructor(private readonly schedulingRuleService: SchedulingRuleService) {}
 
   @Post()
-  @Roles('HR Manager')
+  @Roles('HR Manager', 'SYSTEM_ADMIN', 'HR_ADMIN', 'System Admin', 'HR Admin')
   @ApiOperation({ summary: 'Create a new scheduling rule' })
   @ApiResponse({
     status: 201,
     description: 'Scheduling rule created successfully',
   })
   @ApiResponse({ status: 400, description: 'Bad request' })
+  @ApiResponse({ status: 403, description: 'Forbidden - insufficient permissions' })
   async create(@Body() createDto: CreateSchedulingRuleDto) {
     return this.schedulingRuleService.create(createDto);
   }
 
   @Get()
-  @Roles('HR Manager', 'SYSTEM_ADMIN')
+  @Roles('HR Manager', 'SYSTEM_ADMIN', 'HR_ADMIN', 'System Admin', 'HR Admin')
   @ApiOperation({ summary: 'Get all scheduling rules' })
   @ApiResponse({ status: 200, description: 'List of scheduling rules' })
   async findAll() {
@@ -44,7 +45,7 @@ export class SchedulingRuleController {
   }
 
   @Get(':id')
-  @Roles('HR Manager', 'SYSTEM_ADMIN')
+  @Roles('HR Manager', 'SYSTEM_ADMIN', 'HR_ADMIN', 'System Admin', 'HR Admin')
   @ApiOperation({ summary: 'Get scheduling rule by ID' })
   @ApiResponse({ status: 200, description: 'Scheduling rule found' })
   @ApiResponse({ status: 404, description: 'Scheduling rule not found' })
@@ -53,7 +54,7 @@ export class SchedulingRuleController {
   }
 
   @Patch(':id')
-  @Roles('HR Manager')
+  @Roles('HR Manager', 'SYSTEM_ADMIN', 'HR_ADMIN', 'System Admin', 'HR Admin')
   @ApiOperation({ summary: 'Update scheduling rule' })
   @ApiResponse({ status: 200, description: 'Scheduling rule updated' })
   @ApiResponse({ status: 404, description: 'Scheduling rule not found' })
@@ -65,7 +66,7 @@ export class SchedulingRuleController {
   }
 
   @Patch(':id/toggle-active')
-  @Roles('HR Manager')
+  @Roles('HR Manager', 'SYSTEM_ADMIN', 'HR_ADMIN', 'System Admin', 'HR Admin')
   @ApiOperation({ summary: 'Toggle scheduling rule active status' })
   @ApiResponse({ status: 200, description: 'Scheduling rule status toggled' })
   @ApiResponse({ status: 404, description: 'Scheduling rule not found' })
@@ -74,7 +75,7 @@ export class SchedulingRuleController {
   }
 
   @Delete(':id')
-  @Roles('HR Manager')
+  @Roles('HR Manager', 'SYSTEM_ADMIN', 'HR_ADMIN', 'System Admin', 'HR Admin')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Delete scheduling rule' })
   @ApiResponse({ status: 204, description: 'Scheduling rule deleted' })

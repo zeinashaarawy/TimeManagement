@@ -3,6 +3,7 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Punch, PunchDocument } from '../../attendance/schemas/punch.schema';
 import { AttendanceRecord, AttendanceRecordDocument } from '../../attendance/schemas/attendance-record.schema';
+import { PunchType } from '../../enums/index';
 
 /**
  * Device Sync Service
@@ -154,7 +155,7 @@ export class DeviceSyncService {
 
     // Add punch to attendance record
     attendance.punches.push({
-      type: punchData.type.toUpperCase() as 'IN' | 'OUT',
+      type: punchData.type.toUpperCase() === 'IN' ? PunchType.IN : PunchType.OUT,
       time: punchTime,
     });
 

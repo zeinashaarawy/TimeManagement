@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { getPolicies, createPolicy, updatePolicy, deletePolicy, assignPolicyToEmployee, assignPolicyToDepartment } from '../../../services/timeManagementApi';
+import api from '../../../api/axios';
 
 interface TimePolicy {
   _id?: string;
@@ -55,26 +56,136 @@ export default function Policies() {
   const [filters, setFilters] = useState({
     scope: '',
     active: '',
+    departmentId: '',
+    employeeId: '',
   });
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  
+  // For dropdowns
+  const [departments, setDepartments] = useState<any[]>([]);
+  const [employees, setEmployees] = useState<any[]>([]);
+  const [loadingDropdowns, setLoadingDropdowns] = useState(false);
 
   useEffect(() => {
     loadPolicies();
   }, [filters]);
 
+  // Load departments and employees when modal opens
+  useEffect(() => {
+    if (showModal) {
+      loadDropdowns();
+    }
+  }, [showModal]);
+
+  // Load dropdowns when filters require them (only once)
+  useEffect(() => {
+    const needsDepartments = (filters.scope === 'DEPARTMENT' || !filters.scope) && departments.length === 0;
+    const needsEmployees = (filters.scope === 'EMPLOYEE' || !filters.scope) && employees.length === 0;
+    
+    if (needsDepartments || needsEmployees) {
+      loadDropdowns();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filters.scope]);
+
   const loadPolicies = async () => {
     try {
       setLoading(true);
-      const response = await getPolicies({
-        scope: filters.scope || undefined,
-        active: filters.active ? filters.active === 'true' : undefined,
-      });
+      const filterParams: any = {};
+      
+      // Add scope filter
+      if (filters.scope) {
+        filterParams.scope = filters.scope;
+      }
+      
+      // Add active filter
+      if (filters.active) {
+        filterParams.active = filters.active === 'true';
+      }
+      
+      // Add departmentId filter (only if scope is DEPARTMENT or not specified)
+      if (filters.departmentId && (filters.scope === 'DEPARTMENT' || !filters.scope)) {
+        filterParams.departmentId = filters.departmentId;
+      }
+      
+      // Add employeeId filter (only if scope is EMPLOYEE or not specified)
+      if (filters.employeeId && (filters.scope === 'EMPLOYEE' || !filters.scope)) {
+        filterParams.employeeId = filters.employeeId;
+      }
+      
+      const response = await getPolicies(filterParams);
       setPolicies(response.data || []);
     } catch (err: any) {
       setError(err.message || 'Failed to load policies');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadDropdowns = async () => {
+    try {
+      setLoadingDropdowns(true);
+      const token = localStorage.getItem('token');
+      
+      // Load departments and employees in parallel
+      const [deptRes, empRes] = await Promise.allSettled([
+        api.get('/organization-structure/departments', {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+        api.get('/employee-profile', {
+          headers: { Authorization: `Bearer ${token}` },
+          params: { limit: 1000 }, // Get all employees
+        }),
+      ]);
+
+      if (deptRes.status === 'fulfilled') {
+        // Handle different response structures
+        let deptData = deptRes.value.data;
+        
+        // Check if it's wrapped in items, data, or is direct array
+        if (deptData?.items && Array.isArray(deptData.items)) {
+          deptData = deptData.items;
+        } else if (deptData?.data && Array.isArray(deptData.data)) {
+          deptData = deptData.data;
+        } else if (!Array.isArray(deptData)) {
+          deptData = [];
+        }
+        
+        // Filter out inactive departments if needed, or show all
+        const allDepartments = Array.isArray(deptData) ? deptData : [];
+        console.log('Loaded departments:', allDepartments.length, allDepartments);
+        setDepartments(allDepartments);
+      } else {
+        console.error('Failed to load departments:', deptRes.reason);
+        setDepartments([]);
+      }
+
+      if (empRes.status === 'fulfilled') {
+        let empData = empRes.value.data;
+        
+        // Handle different response structures
+        if (empData?.items && Array.isArray(empData.items)) {
+          empData = empData.items;
+        } else if (empData?.data && Array.isArray(empData.data)) {
+          empData = empData.data;
+        } else if (!Array.isArray(empData)) {
+          empData = [];
+        }
+        
+        const allEmployees = Array.isArray(empData) ? empData : [];
+        console.log('Loaded employees:', allEmployees.length);
+        setEmployees(allEmployees);
+      } else {
+        console.error('Failed to load employees:', empRes.reason);
+        setEmployees([]);
+      }
+    } catch (err) {
+      console.error('Failed to load dropdowns:', err);
+      setDepartments([]);
+      setEmployees([]);
+    } finally {
+      setLoadingDropdowns(false);
     }
   };
 
@@ -179,13 +290,33 @@ export default function Policies() {
 
       {/* Filters */}
       <div className="mb-6 bg-white/5 border border-white/10 rounded-2xl p-4">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-semibold text-white">Filters</h3>
+          <button
+            onClick={() => {
+              setFilters({ scope: '', active: '', departmentId: '', employeeId: '' });
+            }}
+            className="text-xs px-3 py-1 bg-white/5 border border-white/10 rounded hover:bg-white/10 text-gray-400 hover:text-white transition"
+          >
+            Clear All
+          </button>
+        </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label className="block text-sm text-gray-400 mb-2">Scope</label>
             <select
               value={filters.scope}
-              onChange={(e) => setFilters({ ...filters, scope: e.target.value })}
-              className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/10 text-white"
+              onChange={(e) => {
+                const newScope = e.target.value;
+                setFilters({ 
+                  ...filters, 
+                  scope: newScope,
+                  // Clear department/employee filters when scope changes
+                  departmentId: newScope !== 'DEPARTMENT' ? '' : filters.departmentId,
+                  employeeId: newScope !== 'EMPLOYEE' ? '' : filters.employeeId,
+                });
+              }}
+              className="w-full px-4 py-2 rounded-lg bg-slate-800 border border-white/10 text-white focus:outline-none focus:ring-2 focus:ring-teal-500"
             >
               <option value="">All Scopes</option>
               <option value="GLOBAL">Global</option>
@@ -198,7 +329,7 @@ export default function Policies() {
             <select
               value={filters.active}
               onChange={(e) => setFilters({ ...filters, active: e.target.value })}
-              className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/10 text-white"
+              className="w-full px-4 py-2 rounded-lg bg-slate-800 border border-white/10 text-white focus:outline-none focus:ring-2 focus:ring-teal-500"
             >
               <option value="">All Statuses</option>
               <option value="true">Active</option>
@@ -206,6 +337,98 @@ export default function Policies() {
             </select>
           </div>
         </div>
+        
+        {/* Department Filter - Show when scope is DEPARTMENT or empty */}
+        {(filters.scope === 'DEPARTMENT' || !filters.scope) && (
+          <div className="mt-4">
+            <label className="block text-sm text-gray-400 mb-2">
+              Filter by Department
+              {departments.length > 0 && (
+                <span className="text-xs text-gray-500 ml-2">({departments.length} available)</span>
+              )}
+            </label>
+            <select
+              value={filters.departmentId}
+              onChange={(e) => setFilters({ ...filters, departmentId: e.target.value })}
+              className="w-full px-4 py-2 rounded-lg bg-slate-800 border border-white/10 text-white focus:outline-none focus:ring-2 focus:ring-teal-500"
+            >
+              <option value="">All Departments</option>
+              {departments.map((dept) => (
+                <option key={dept._id} value={dept._id} className="bg-slate-800 text-white">
+                  {dept.name || dept.code || dept._id}
+                  {dept.code && dept.name && ` (${dept.code})`}
+                </option>
+              ))}
+            </select>
+            {departments.length === 0 && (
+              <p className="text-xs text-yellow-400 mt-1">
+                No departments available. Load departments first.
+              </p>
+            )}
+          </div>
+        )}
+        
+        {/* Employee Filter - Show when scope is EMPLOYEE or empty */}
+        {(filters.scope === 'EMPLOYEE' || !filters.scope) && (
+          <div className="mt-4">
+            <label className="block text-sm text-gray-400 mb-2">
+              Filter by Employee
+              {employees.length > 0 && (
+                <span className="text-xs text-gray-500 ml-2">({employees.length} available)</span>
+              )}
+            </label>
+            <select
+              value={filters.employeeId}
+              onChange={(e) => setFilters({ ...filters, employeeId: e.target.value })}
+              className="w-full px-4 py-2 rounded-lg bg-slate-800 border border-white/10 text-white focus:outline-none focus:ring-2 focus:ring-teal-500"
+            >
+              <option value="">All Employees</option>
+              {employees.map((emp) => (
+                <option key={emp._id} value={emp._id} className="bg-slate-800 text-white">
+                  {emp.firstName && emp.lastName
+                    ? `${emp.firstName} ${emp.lastName}${emp.employeeNumber ? ` (${emp.employeeNumber})` : ''}`
+                    : emp.employeeNumber || emp._id}
+                </option>
+              ))}
+            </select>
+            {employees.length === 0 && (
+              <p className="text-xs text-yellow-400 mt-1">
+                No employees available. Load employees first.
+              </p>
+            )}
+          </div>
+        )}
+        
+        {/* Active Filter Summary */}
+        {(filters.scope || filters.active || filters.departmentId || filters.employeeId) && (
+          <div className="mt-4 p-3 bg-teal-500/10 border border-teal-500/20 rounded-lg">
+            <p className="text-xs text-teal-300 font-semibold mb-1">Active Filters:</p>
+            <div className="flex flex-wrap gap-2">
+              {filters.scope && (
+                <span className="text-xs px-2 py-1 bg-teal-500/20 text-teal-300 rounded">
+                  Scope: {getScopeLabel(filters.scope)}
+                </span>
+              )}
+              {filters.active && (
+                <span className="text-xs px-2 py-1 bg-teal-500/20 text-teal-300 rounded">
+                  Status: {filters.active === 'true' ? 'Active' : 'Inactive'}
+                </span>
+              )}
+              {filters.departmentId && (
+                <span className="text-xs px-2 py-1 bg-teal-500/20 text-teal-300 rounded">
+                  Department: {departments.find(d => d._id === filters.departmentId)?.name || filters.departmentId}
+                </span>
+              )}
+              {filters.employeeId && (
+                <span className="text-xs px-2 py-1 bg-teal-500/20 text-teal-300 rounded">
+                  Employee: {employees.find(e => e._id === filters.employeeId)?.firstName && employees.find(e => e._id === filters.employeeId)?.lastName
+                    ? `${employees.find(e => e._id === filters.employeeId)?.firstName} ${employees.find(e => e._id === filters.employeeId)?.lastName}`
+                    : filters.employeeId}
+                </span>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Policies Grid */}
@@ -338,39 +561,151 @@ export default function Policies() {
                   <select
                     required
                     value={formData.scope || 'GLOBAL'}
-                    onChange={(e) => setFormData({ ...formData, scope: e.target.value as any })}
-                    className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/10 text-white"
+                    onChange={(e) => {
+                      const newScope = e.target.value as 'GLOBAL' | 'DEPARTMENT' | 'EMPLOYEE';
+                      console.log('Scope changed to:', newScope); // Debug log
+                      // Clear departmentId/employeeId when scope changes
+                      const updatedData: Partial<TimePolicy> = { ...formData, scope: newScope };
+                      if (newScope !== 'DEPARTMENT') {
+                        delete updatedData.departmentId;
+                      }
+                      if (newScope !== 'EMPLOYEE') {
+                        delete updatedData.employeeId;
+                      }
+                      setFormData(updatedData);
+                    }}
+                    className="w-full px-4 py-2 rounded-lg bg-slate-800 border border-white/10 text-white focus:outline-none focus:ring-2 focus:ring-teal-500 appearance-none cursor-pointer"
                   >
-                    <option value="GLOBAL">Global</option>
-                    <option value="DEPARTMENT">Department</option>
-                    <option value="EMPLOYEE">Employee</option>
+                    <option value="GLOBAL" className="bg-slate-800 text-white">Global</option>
+                    <option value="DEPARTMENT" className="bg-slate-800 text-white">Department</option>
+                    <option value="EMPLOYEE" className="bg-slate-800 text-white">Employee</option>
                   </select>
+                  <p className="text-xs text-gray-500 mt-1">Current: {formData.scope || 'GLOBAL'}</p>
                 </div>
               </div>
 
               {formData.scope === 'DEPARTMENT' && (
                 <div>
-                  <label className="block text-sm text-gray-400 mb-2">Department ID *</label>
-                  <input
-                    type="text"
-                    required
-                    value={formData.departmentId || ''}
-                    onChange={(e) => setFormData({ ...formData, departmentId: e.target.value })}
-                    className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/10 text-white"
-                  />
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="block text-sm text-gray-400">
+                      Department * 
+                      {departments.length > 0 && (
+                        <span className="text-xs text-gray-500 ml-2">({departments.length} available)</span>
+                      )}
+                    </label>
+                    <button
+                      type="button"
+                      onClick={loadDropdowns}
+                      className="text-xs px-2 py-1 bg-white/5 border border-white/10 rounded hover:bg-white/10 text-gray-400 hover:text-white transition"
+                      title="Refresh departments list"
+                    >
+                      🔄 Refresh
+                    </button>
+                  </div>
+                  {loadingDropdowns ? (
+                    <div className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/10 text-gray-400">
+                      Loading departments...
+                    </div>
+                  ) : (
+                    <select
+                      required
+                      value={formData.departmentId || ''}
+                      onChange={(e) => setFormData({ ...formData, departmentId: e.target.value })}
+                      className="w-full px-4 py-2 rounded-lg bg-slate-800 border border-white/10 text-white focus:outline-none focus:ring-2 focus:ring-teal-500 appearance-none cursor-pointer"
+                    >
+                      <option value="" className="bg-slate-800 text-white">Select Department</option>
+                      {departments.length > 0 ? (
+                        departments.map((dept) => (
+                          <option 
+                            key={dept._id} 
+                            value={dept._id}
+                            className="bg-slate-800 text-white"
+                          >
+                            {dept.name || dept.code || dept._id}
+                            {dept.code && dept.name && ` (${dept.code})`}
+                          </option>
+                        ))
+                      ) : (
+                        <option value="" disabled className="bg-slate-800 text-gray-500">
+                          No departments available
+                        </option>
+                      )}
+                    </select>
+                  )}
+                  {departments.length === 0 && !loadingDropdowns && (
+                    <div className="mt-2 p-2 bg-yellow-500/10 border border-yellow-500/20 rounded text-xs text-yellow-400">
+                      <p className="font-semibold mb-1">No departments found</p>
+                      <p>Please create departments first in <strong>Organization Structure → Departments</strong></p>
+                    </div>
+                  )}
+                  {departments.length > 0 && (
+                    <p className="text-xs text-gray-500 mt-1">
+                      ✓ Showing all {departments.length} department{departments.length !== 1 ? 's' : ''}
+                    </p>
+                  )}
                 </div>
               )}
 
               {formData.scope === 'EMPLOYEE' && (
                 <div>
-                  <label className="block text-sm text-gray-400 mb-2">Employee ID *</label>
-                  <input
-                    type="text"
-                    required
-                    value={formData.employeeId || ''}
-                    onChange={(e) => setFormData({ ...formData, employeeId: e.target.value })}
-                    className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/10 text-white"
-                  />
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="block text-sm text-gray-400">
+                      Employee * 
+                      {employees.length > 0 && (
+                        <span className="text-xs text-gray-500 ml-2">({employees.length} available)</span>
+                      )}
+                    </label>
+                    <button
+                      type="button"
+                      onClick={loadDropdowns}
+                      className="text-xs px-2 py-1 bg-white/5 border border-white/10 rounded hover:bg-white/10 text-gray-400 hover:text-white transition"
+                      title="Refresh employees list"
+                    >
+                      🔄 Refresh
+                    </button>
+                  </div>
+                  {loadingDropdowns ? (
+                    <div className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/10 text-gray-400">
+                      Loading employees...
+                    </div>
+                  ) : (
+                    <select
+                      required
+                      value={formData.employeeId || ''}
+                      onChange={(e) => setFormData({ ...formData, employeeId: e.target.value })}
+                      className="w-full px-4 py-2 rounded-lg bg-slate-800 border border-white/10 text-white focus:outline-none focus:ring-2 focus:ring-teal-500 appearance-none cursor-pointer"
+                    >
+                      <option value="" className="bg-slate-800 text-white">Select Employee</option>
+                      {employees.length > 0 ? (
+                        employees.map((emp) => (
+                          <option 
+                            key={emp._id} 
+                            value={emp._id}
+                            className="bg-slate-800 text-white"
+                          >
+                            {emp.firstName && emp.lastName
+                              ? `${emp.firstName} ${emp.lastName}${emp.employeeNumber ? ` (${emp.employeeNumber})` : ''}`
+                              : emp.employeeNumber || emp._id}
+                          </option>
+                        ))
+                      ) : (
+                        <option value="" disabled className="bg-slate-800 text-gray-500">
+                          No employees available
+                        </option>
+                      )}
+                    </select>
+                  )}
+                  {employees.length === 0 && !loadingDropdowns && (
+                    <div className="mt-2 p-2 bg-yellow-500/10 border border-yellow-500/20 rounded text-xs text-yellow-400">
+                      <p className="font-semibold mb-1">No employees found</p>
+                      <p>Please create employees first in <strong>HR → Employees → Create Employee</strong></p>
+                    </div>
+                  )}
+                  {employees.length > 0 && (
+                    <p className="text-xs text-gray-500 mt-1">
+                      ✓ Showing all {employees.length} employee{employees.length !== 1 ? 's' : ''}
+                    </p>
+                  )}
                 </div>
               )}
 

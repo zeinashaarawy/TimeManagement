@@ -29,6 +29,7 @@ export default function Exceptions() {
   const [actionNotes, setActionNotes] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [processing, setProcessing] = useState(false);
 
   useEffect(() => {
     loadExceptions();
@@ -52,39 +53,78 @@ export default function Exceptions() {
 
   const handleAction = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedException?._id || !currentUser?.id) return;
+    
+    if (!selectedException?._id) {
+      setError('No exception selected');
+      return;
+    }
+
+    // Get user ID from multiple sources
+    const userId = currentUser?.id || 
+                   localStorage.getItem('userId') || 
+                   localStorage.getItem('x-user-id') ||
+                   '646576757365723132330000'; // Fallback dev user ID
+
+    if (!userId) {
+      setError('User ID not found. Please log in again.');
+      return;
+    }
 
     try {
+      setProcessing(true);
       setError(null);
       setSuccess(null);
-      const actionData = {
-        approvedBy: currentUser.id,
-        notes: actionNotes || undefined,
-      };
+      
+      console.log('Processing exception action:', {
+        exceptionId: selectedException._id,
+        actionType,
+        userId,
+      });
 
       if (actionType === 'approve') {
+        const actionData = {
+          approvedBy: userId,
+          notes: actionNotes || undefined,
+        };
+        console.log('Approving exception with data:', actionData);
         await approveException(selectedException._id, actionData);
         setSuccess('Exception approved successfully');
       } else if (actionType === 'reject') {
-        await rejectException(selectedException._id, {
-          rejectedBy: currentUser.id,
+        const actionData = {
+          rejectedBy: userId,
           reason: actionNotes || undefined,
-        });
+        };
+        console.log('Rejecting exception with data:', actionData);
+        await rejectException(selectedException._id, actionData);
         setSuccess('Exception rejected successfully');
       } else if (actionType === 'escalate') {
-        await escalateException(selectedException._id, {
-          escalatedTo: currentUser.id,
+        const actionData = {
+          escalatedTo: userId,
           reason: actionNotes || 'Escalated for review',
-        });
+        };
+        console.log('Escalating exception with data:', actionData);
+        await escalateException(selectedException._id, actionData);
         setSuccess('Exception escalated successfully');
       }
 
+      // Close modal and reload after success
       setShowActionModal(false);
       setSelectedException(null);
       setActionNotes('');
-      loadExceptions();
+      // Reload exceptions after a short delay to ensure backend has processed
+      setTimeout(() => {
+        loadExceptions();
+      }, 500);
     } catch (err: any) {
-      setError(err.response?.data?.message || err.message || 'Failed to process exception');
+      console.error('Exception action error:', err);
+      const errorMessage = err.response?.data?.message || 
+                          err.response?.data?.error || 
+                          err.message || 
+                          'Failed to process exception';
+      setError(errorMessage);
+      // Keep modal open so user can see the error and try again
+    } finally {
+      setProcessing(false);
     }
   };
 
@@ -295,6 +335,21 @@ export default function Exceptions() {
             </div>
 
             <form onSubmit={handleAction} className="space-y-6">
+              {/* Error display in modal */}
+              {error && (
+                <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-xl text-red-300 text-sm">
+                  <p className="font-semibold mb-1">Error:</p>
+                  <p>{error}</p>
+                </div>
+              )}
+              
+              {/* Success display in modal */}
+              {success && (
+                <div className="p-3 bg-green-500/10 border border-green-500/20 rounded-xl text-green-300 text-sm">
+                  {success}
+                </div>
+              )}
+
               <div>
                 <p className="text-sm text-gray-400 mb-2">Exception Type</p>
                 <p className="text-white">{getTypeLabel(selectedException.type)}</p>
@@ -303,23 +358,32 @@ export default function Exceptions() {
                 <p className="text-sm text-gray-400 mb-2">Employee</p>
                 <p className="text-white">{getEmployeeName(selectedException.employeeId)}</p>
               </div>
+              {process.env.NODE_ENV === 'development' && (
+                <div className="p-2 bg-gray-500/10 border border-gray-500/20 rounded text-xs text-gray-400">
+                  <p>Debug: User ID = {currentUser?.id || localStorage.getItem('userId') || 'Not found'}</p>
+                  <p>Exception ID = {selectedException._id}</p>
+                </div>
+              )}
               <div>
                 <label className="block text-sm text-gray-400 mb-2">
-                  {actionType === 'escalate' ? 'Escalation Reason' : 'Notes'}
+                  {actionType === 'escalate' ? 'Escalation Reason' : actionType === 'reject' ? 'Rejection Reason' : 'Notes'}
+                  {actionType === 'reject' && <span className="text-red-400 ml-1">*</span>}
                 </label>
                 <textarea
                   value={actionNotes}
                   onChange={(e) => setActionNotes(e.target.value)}
                   className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/10 text-white"
                   rows={4}
-                  placeholder={actionType === 'escalate' ? 'Enter escalation reason...' : 'Enter notes (optional)...'}
+                  placeholder={actionType === 'escalate' ? 'Enter escalation reason...' : actionType === 'reject' ? 'Enter rejection reason (required)...' : 'Enter notes (optional)...'}
+                  required={actionType === 'reject'}
                 />
               </div>
 
               <div className="flex gap-3 pt-4">
                 <button
                   type="submit"
-                  className={`flex-1 px-6 py-3 rounded-xl transition-all ${
+                  disabled={processing || (actionType === 'reject' && !actionNotes.trim())}
+                  className={`flex-1 px-6 py-3 rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
                     actionType === 'approve'
                       ? 'bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-400 hover:to-emerald-400'
                       : actionType === 'reject'
@@ -327,7 +391,13 @@ export default function Exceptions() {
                       : 'bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-400 hover:to-amber-400'
                   }`}
                 >
-                  {actionType === 'approve' ? 'Approve' : actionType === 'reject' ? 'Reject' : 'Escalate'}
+                  {processing 
+                    ? 'Processing...' 
+                    : actionType === 'approve' 
+                      ? 'Approve' 
+                      : actionType === 'reject' 
+                        ? 'Reject' 
+                        : 'Escalate'}
                 </button>
                 <button
                   type="button"
@@ -337,8 +407,10 @@ export default function Exceptions() {
                     setActionNotes('');
                     setError(null);
                     setSuccess(null);
+                    setProcessing(false);
                   }}
-                  className="px-6 py-3 bg-white/5 border border-white/10 rounded-xl hover:bg-white/10 transition-all"
+                  disabled={processing}
+                  className="px-6 py-3 bg-white/5 border border-white/10 rounded-xl hover:bg-white/10 transition-all disabled:opacity-50"
                 >
                   Cancel
                 </button>

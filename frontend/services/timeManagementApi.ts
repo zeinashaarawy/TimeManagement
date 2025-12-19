@@ -1,7 +1,7 @@
 import axios from "axios";
 
 // Base URL - automatically detects hostname when running in browser
-// Backend runs on port 3000 (or from env PORT), frontend on port 3001
+// Backend runs on port 5001 (or from env PORT), frontend on port 3001
 // This ensures API calls work when accessing via network IP (e.g., 172.20.10.3:3001)
 // You can override by setting NEXT_PUBLIC_API_URL in frontend/.env.local
 const getBaseURL = (): string => {
@@ -10,14 +10,14 @@ const getBaseURL = (): string => {
     return process.env.NEXT_PUBLIC_API_URL;
   }
   
-  // If running in browser, use current hostname but with backend port (3000 or from env)
+  // If running in browser, use current hostname but with backend port (5001 or from env)
   // This works for both localhost and network IPs (e.g., 172.20.10.3)
   if (typeof window !== 'undefined') {
     const hostname = window.location.hostname;
-    // Backend port defaults to 3000, but can be overridden via env
-    // IMPORTANT: Always use port 3000 for backend, not the frontend port
-    // Force port 3000 unless explicitly set via environment variable
-    const backendPort = process.env.NEXT_PUBLIC_BACKEND_PORT || '3000';
+    // Backend port defaults to 5001, but can be overridden via env
+    // IMPORTANT: Always use port 5001 for backend, not the frontend port
+    // Force port 5001 unless explicitly set via environment variable
+    const backendPort = process.env.NEXT_PUBLIC_BACKEND_PORT || '5001';
     const baseURL = `http://${hostname}:${backendPort}`;
     
     // Log for debugging - always log in development
@@ -25,13 +25,13 @@ const getBaseURL = (): string => {
     console.log('[API Config] Frontend URL:', window.location.origin);
     console.log('[API Config] Frontend Port:', window.location.port);
     console.log('[API Config] Backend Port:', backendPort);
-    console.log('[API Config] NEXT_PUBLIC_BACKEND_PORT env:', process.env.NEXT_PUBLIC_BACKEND_PORT || 'not set (using default 3000)');
+    console.log('[API Config] NEXT_PUBLIC_BACKEND_PORT env:', process.env.NEXT_PUBLIC_BACKEND_PORT || 'not set (using default 5001)');
     
     return baseURL;
   }
   
   // Server-side fallback (SSR)
-  return process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
+  return process.env.NEXT_PUBLIC_API_URL || "http://localhost:5001";
 };
 
 const BASE_URL = getBaseURL();
@@ -68,13 +68,11 @@ const handleError = (error: any) => {
     const contentType = error.response.headers?.['content-type'] || '';
     if (contentType.includes('text/html') || (typeof error.response.data === 'string' && error.response.data.includes('<!DOCTYPE html>'))) {
       const requestUrl = error.config?.url || error.config?.baseURL || 'unknown';
-      throw new Error(
-        `API endpoint not found (404). The request was sent to: ${requestUrl}. ` +
+      message = `API endpoint not found (404). The request was sent to: ${requestUrl}. ` +
         `This usually means:\n` +
         `1. The backend server is not running (check if it's running on port ${process.env.NEXT_PUBLIC_BACKEND_PORT || '3000'})\n` +
         `2. The API URL is incorrect (current BASE_URL: ${BASE_URL})\n` +
-        `3. The endpoint doesn't exist on the backend`
-      );
+        `3. The endpoint doesn't exist on the backend`;
     }
     
     try {
@@ -102,18 +100,28 @@ const handleError = (error: any) => {
       message = error.message || 'An error occurred';
     }
     
-    throw new Error(`${message} (Status: ${status})`);
+    // Attach the formatted message to the error object instead of throwing
+    // This allows the component to catch it properly without Next.js catching it as a runtime error
+    const formattedMessage = `${message} (Status: ${status})`;
+    error.formattedMessage = formattedMessage;
+    error.userMessage = message; // Store the clean message without status
+    // Don't throw - let the promise rejection handle it
   } else if (error.request) {
     // Request made but no response
-    throw new Error(
-      `Network error: No response from server. ` +
+    const networkMessage = `Network error: No response from server. ` +
       `Please check if the backend is running on ${BASE_URL}. ` +
-      `Make sure the backend server is started with 'npm run start:dev' in the backend directory.`
-    );
+      `Make sure the backend server is started with 'npm run start:dev' in the backend directory.`;
+    error.userMessage = networkMessage;
+    error.formattedMessage = networkMessage;
   } else {
     // Something else happened
-    throw new Error(error.message || 'An unexpected error occurred');
+    const defaultMessage = error.message || 'An unexpected error occurred';
+    error.userMessage = defaultMessage;
+    error.formattedMessage = defaultMessage;
   }
+  
+  // NEVER throw - always attach properties to error object
+  // The interceptor will reject the promise, which the component can catch
 };
 
 // Time Management API - @Controller('time-management')
@@ -163,7 +171,6 @@ TimeManagementAPI.interceptors.request.use((config) => {
         'systemadmin': 'SYSTEM_ADMIN',
         // Employee roles
         'employee': 'EMPLOYEE',
-        'department employee': 'department employee',
         'department employee': 'department employee',
         'department_head': 'department head',
         'departmenthead': 'department head',
@@ -216,6 +223,8 @@ TimeManagementAPI.interceptors.response.use(
     return response;
   },
   (error) => {
+    // Handle error and attach user-friendly message
+    // This prevents Next.js from catching it as a runtime error
     handleError(error);
     return Promise.reject(error);
   }

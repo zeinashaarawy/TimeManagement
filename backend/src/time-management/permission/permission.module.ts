@@ -1,11 +1,10 @@
-import { Module, forwardRef } from '@nestjs/common';
+import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { PermissionValidationService } from './services/permission-validation.service';
 import { PermissionValidationController } from './controllers/permission-validation.controller';
 import { EmployeeProfile, EmployeeProfileSchema } from '../../employee-profile/models/employee-profile.schema';
 import { TimePolicy, TimePolicySchema } from '../policy/schemas/time-policy.schema';
 import { TimeException, TimeExceptionSchema } from '../attendance/schemas/time-exception.schema';
-import { PolicyModule } from '../policy/policy.module';
 
 @Module({
   imports: [
@@ -14,7 +13,6 @@ import { PolicyModule } from '../policy/policy.module';
       { name: TimePolicy.name, schema: TimePolicySchema },
       { name: TimeException.name, schema: TimeExceptionSchema },
     ]),
-    forwardRef(() => PolicyModule),
   ],
   controllers: [PermissionValidationController],
   providers: [PermissionValidationService],

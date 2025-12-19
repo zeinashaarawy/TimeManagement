@@ -40,6 +40,7 @@ export default function ShiftsSchedulingRules() {
   });
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     loadRules();
@@ -61,35 +62,88 @@ export default function ShiftsSchedulingRules() {
     e.preventDefault();
     setError(null);
     setSuccess(null);
+    setSubmitting(true);
 
     try {
+      // Validate required fields
+      if (!formData.name || !formData.name.trim()) {
+        setError('Rule name is required');
+        return;
+      }
+
+      if (!formData.type) {
+        setError('Rule type is required');
+        return;
+      }
+
       // Validate based on type
       if (formData.type === 'FLEXIBLE') {
-        if (!formData.flexInWindow || !formData.flexOutWindow) {
-          setError('Flex in and flex out windows are required for flexible rules');
+        if (!formData.flexInWindow || !formData.flexInWindow.trim()) {
+          setError('Flex in window is required for flexible rules');
+          return;
+        }
+        if (!formData.flexOutWindow || !formData.flexOutWindow.trim()) {
+          setError('Flex out window is required for flexible rules');
           return;
         }
       }
 
       if (formData.type === 'COMPRESSED') {
-        if (!formData.workDaysPerWeek || !formData.hoursPerDay) {
-          setError('Work days per week and hours per day are required for compressed rules');
+        if (!formData.workDaysPerWeek || formData.workDaysPerWeek < 1 || formData.workDaysPerWeek > 7) {
+          setError('Work days per week must be between 1 and 7');
+          return;
+        }
+        if (!formData.hoursPerDay || formData.hoursPerDay < 1 || formData.hoursPerDay > 24) {
+          setError('Hours per day must be between 1 and 24');
           return;
         }
       }
 
       if (formData.type === 'ROTATIONAL') {
-        if (!formData.rotationalPattern) {
+        if (!formData.rotationalPattern || !formData.rotationalPattern.trim()) {
           setError('Rotational pattern is required for rotational rules');
           return;
         }
       }
 
+      // Prepare clean data object - only include relevant fields for the rule type
+      const cleanData: any = {
+        name: formData.name.trim(),
+        type: formData.type,
+        active: formData.active !== undefined ? formData.active : true,
+      };
+
+      // Add type-specific fields
+      if (formData.type === 'FLEXIBLE') {
+        cleanData.flexInWindow = formData.flexInWindow?.trim();
+        cleanData.flexOutWindow = formData.flexOutWindow?.trim();
+      } else if (formData.type === 'ROTATIONAL') {
+        cleanData.rotationalPattern = formData.rotationalPattern?.trim();
+      } else if (formData.type === 'COMPRESSED') {
+        cleanData.workDaysPerWeek = formData.workDaysPerWeek;
+        cleanData.hoursPerDay = formData.hoursPerDay;
+      }
+
+      // Add optional fields only if they have values
+      if (formData.description && formData.description.trim()) {
+        cleanData.description = formData.description.trim();
+      }
+
+      if (formData.departmentIds && formData.departmentIds.length > 0) {
+        cleanData.departmentIds = formData.departmentIds;
+      }
+
+      if (formData.shiftTemplateIds && formData.shiftTemplateIds.length > 0) {
+        cleanData.shiftTemplateIds = formData.shiftTemplateIds;
+      }
+
+      console.log('Submitting scheduling rule:', cleanData);
+
       if (editingRule?._id) {
-        await schedulingRulesApi.update(editingRule._id, formData);
+        await schedulingRulesApi.update(editingRule._id, cleanData);
         setSuccess('Scheduling rule updated successfully');
       } else {
-        await schedulingRulesApi.create(formData);
+        await schedulingRulesApi.create(cleanData);
         setSuccess('Scheduling rule created successfully');
       }
 
@@ -110,7 +164,25 @@ export default function ShiftsSchedulingRules() {
       });
       loadRules();
     } catch (err: any) {
-      setError(err.response?.data?.message || err.message || 'Failed to save scheduling rule');
+      console.error('Error saving scheduling rule:', err);
+      
+      let errorMessage = err.response?.data?.message || 
+                        err.response?.data?.error || 
+                        err.message || 
+                        'Failed to save scheduling rule';
+      
+      // Handle 403 Forbidden errors with helpful message
+      if (err.response?.status === 403) {
+        const userRole = localStorage.getItem('userRole') || localStorage.getItem('role') || 'not set';
+        errorMessage = `Access Denied (403): ${errorMessage}\n\n` +
+          `Your current role: ${userRole}\n` +
+          `Required roles: HR Manager, SYSTEM_ADMIN, or HR_ADMIN\n\n` +
+          `Please ensure you're logged in with the correct role, or contact your administrator.`;
+      }
+      
+      setError(errorMessage);
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -325,6 +397,21 @@ export default function ShiftsSchedulingRules() {
                   setEditingRule(null);
                   setError(null);
                   setSuccess(null);
+                  setSubmitting(false);
+                  // Reset form
+                  setFormData({
+                    name: '',
+                    type: 'FLEXIBLE',
+                    active: true,
+                    flexInWindow: '',
+                    flexOutWindow: '',
+                    rotationalPattern: '',
+                    workDaysPerWeek: 4,
+                    hoursPerDay: 10,
+                    description: '',
+                    departmentIds: [],
+                    shiftTemplateIds: [],
+                  });
                 }}
                 className="p-2 hover:bg-white/10 rounded-lg"
               >
@@ -333,6 +420,21 @@ export default function ShiftsSchedulingRules() {
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-6">
+              {/* Error display in modal */}
+              {error && (
+                <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-xl text-red-300 text-sm">
+                  <p className="font-semibold mb-1">Error:</p>
+                  <p>{error}</p>
+                </div>
+              )}
+              
+              {/* Success display in modal */}
+              {success && (
+                <div className="p-3 bg-green-500/10 border border-green-500/20 rounded-xl text-green-300 text-sm">
+                  {success}
+                </div>
+              )}
+
               <div>
                 <label className="block text-sm text-gray-400 mb-2">Rule Name *</label>
                 <input
@@ -469,9 +571,14 @@ export default function ShiftsSchedulingRules() {
               <div className="flex gap-3 pt-4">
                 <button
                   type="submit"
-                  className="flex-1 px-6 py-3 bg-gradient-to-r from-teal-500 to-emerald-500 rounded-xl hover:from-teal-400 hover:to-emerald-400 transition-all"
+                  disabled={submitting}
+                  className="flex-1 px-6 py-3 bg-gradient-to-r from-teal-500 to-emerald-500 rounded-xl hover:from-teal-400 hover:to-emerald-400 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {editingRule ? 'Update Rule' : 'Create Rule'}
+                  {submitting 
+                    ? 'Saving...' 
+                    : editingRule 
+                      ? 'Update Rule' 
+                      : 'Create Rule'}
                 </button>
                 <button
                   type="button"
@@ -480,8 +587,24 @@ export default function ShiftsSchedulingRules() {
                     setEditingRule(null);
                     setError(null);
                     setSuccess(null);
+                    setSubmitting(false);
+                    // Reset form
+                    setFormData({
+                      name: '',
+                      type: 'FLEXIBLE',
+                      active: true,
+                      flexInWindow: '',
+                      flexOutWindow: '',
+                      rotationalPattern: '',
+                      workDaysPerWeek: 4,
+                      hoursPerDay: 10,
+                      description: '',
+                      departmentIds: [],
+                      shiftTemplateIds: [],
+                    });
                   }}
-                  className="px-6 py-3 bg-white/5 border border-white/10 rounded-xl hover:bg-white/10 transition-all"
+                  disabled={submitting}
+                  className="px-6 py-3 bg-white/5 border border-white/10 rounded-xl hover:bg-white/10 transition-all disabled:opacity-50"
                 >
                   Cancel
                 </button>
