@@ -47,3 +47,14 @@ export enum TimeExceptionStatus {
   ESCALATED = 'ESCALATED',
   RESOLVED = 'RESOLVED',
 }
+
+/**
+ * Permission Type - Types of time permissions that can be requested
+ * BR-TM-16: Permission policies must define types of Over/Short time
+ */
+export enum PermissionType {
+  EARLY_IN = 'EARLY_IN', // Employee arrives before scheduled start time
+  LATE_OUT = 'LATE_OUT', // Employee leaves after scheduled end time
+  OUT_OF_HOURS = 'OUT_OF_HOURS', // Work outside normal hours
+  TOTAL = 'TOTAL', // Total time adjustment (general permission)
+}

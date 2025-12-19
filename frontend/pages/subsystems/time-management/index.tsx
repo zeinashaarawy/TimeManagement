@@ -43,7 +43,7 @@ const tabs: Tab[] = [
     id: 'shifts-assignments',
     label: 'Shift Assignments',
     icon: '📅',
-    roles: ['HR Manager', 'System Admin', 'HR Admin', 'department employee', 'Employee', 'EMPLOYEE'],
+    roles: ['HR Manager', 'System Admin', 'HR Admin'],
   },
   {
     id: 'shifts-notifications',

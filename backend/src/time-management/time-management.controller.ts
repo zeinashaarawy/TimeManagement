@@ -13,7 +13,7 @@ import {
 import { TimeManagementService } from './time-management.service';
 import { CreatePunchDto } from './attendance/dto/create-punch.dto';
 import { UpdatePunchDto } from './attendance/dto/update-punch.dto';
-import { TimeExceptionType } from './enums/index';
+import { TimeExceptionType, PermissionType } from './enums/index';
 import { RolesGuard } from './Shift/guards/roles.guard';
 import { Roles } from './Shift/decorators/roles.decorator';
 
@@ -88,6 +88,9 @@ export class TimeManagementController {
       reason: string;
       assignedToId: string;
       type?: string;
+      permissionType?: string; // BR-TM-16: Permission type (EARLY_IN, LATE_OUT, etc.)
+      durationMinutes?: number; // BR-TM-16: Duration in minutes
+      requestedDate?: string; // BR-TM-17: Date for which permission is requested (ISO string)
     },
   ) {
     if (
@@ -100,6 +103,8 @@ export class TimeManagementController {
     }
 
     const exceptionType = body.type ? (TimeExceptionType[body.type as keyof typeof TimeExceptionType] || undefined) : undefined;
+    const permissionType = body.permissionType ? (PermissionType[body.permissionType as keyof typeof PermissionType] || undefined) : undefined;
+    const requestedDate = body.requestedDate ? new Date(body.requestedDate) : undefined;
 
     return this.tmService.createTimeException(
       body.employeeId,
@@ -107,6 +112,9 @@ export class TimeManagementController {
       body.reason,
       body.assignedToId,
       exceptionType,
+      permissionType,
+      body.durationMinutes,
+      requestedDate,
     );
   }
 

@@ -1,9 +1,20 @@
 import React, { useState, useEffect } from 'react';
-import { getAttendanceReport, getOvertimeReport, getPenaltyReport, exportAttendanceReport, exportOvertimeReport } from '../../../services/timeManagementApi';
+import { getAttendanceReport, getOvertimeReport, getPenaltyReport, exportAttendanceReport, exportOvertimeReport, exportPenaltyReport } from '../../../services/timeManagementApi';
 
 interface ReportData {
   data?: any[];
-  total?: number;
+  aggregates?: {
+    totalOvertimeMinutes?: number;
+    totalAmount?: number;
+    totalMinutes?: number;
+    count?: number;
+  };
+  pagination?: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
   summary?: any;
 }
 
@@ -17,6 +28,7 @@ export default function Reports() {
     startDate: new Date(new Date().setDate(new Date().getDate() - 30)).toISOString().split('T')[0],
     endDate: new Date().toISOString().split('T')[0],
     status: '',
+    type: '',
   });
   const [error, setError] = useState<string | null>(null);
 
@@ -51,10 +63,13 @@ export default function Reports() {
           departmentId: filters.departmentId || undefined,
           startDate: filters.startDate || undefined,
           endDate: filters.endDate || undefined,
+          type: filters.type || undefined,
+          status: filters.status || undefined,
         });
       }
 
-      setReportData(response.data || {});
+      // Backend returns: { data: [], aggregates: {}, pagination: {} }
+      setReportData(response.data || response || {});
     } catch (err: any) {
       setError(err.message || 'Failed to load report');
     } finally {
@@ -77,6 +92,16 @@ export default function Reports() {
         departmentId: filters.departmentId || undefined,
         startDate: filters.startDate || undefined,
         endDate: filters.endDate || undefined,
+        status: filters.status || undefined,
+      });
+      window.open(url, '_blank');
+    } else if (activeReport === 'penalty') {
+      const url = exportPenaltyReport({
+        employeeId: filters.employeeId || undefined,
+        departmentId: filters.departmentId || undefined,
+        startDate: filters.startDate || undefined,
+        endDate: filters.endDate || undefined,
+        type: filters.type || undefined,
         status: filters.status || undefined,
       });
       window.open(url, '_blank');
@@ -191,6 +216,37 @@ export default function Reports() {
             </select>
           </div>
         )}
+        {activeReport === 'penalty' && (
+          <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm text-gray-400 mb-2">Type</label>
+              <select
+                value={filters.type}
+                onChange={(e) => setFilters({ ...filters, type: e.target.value })}
+                className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/10 text-white"
+              >
+                <option value="">All Types</option>
+                <option value="LATE">Late</option>
+                <option value="EARLY_LEAVE">Early Leave</option>
+                <option value="SHORT_TIME">Short Time</option>
+                <option value="ABSENT">Absent</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm text-gray-400 mb-2">Status</label>
+              <select
+                value={filters.status}
+                onChange={(e) => setFilters({ ...filters, status: e.target.value })}
+                className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/10 text-white"
+              >
+                <option value="">All Statuses</option>
+                <option value="APPROVED">Approved</option>
+                <option value="PENDING">Pending</option>
+                <option value="REJECTED">Rejected</option>
+              </select>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Error */}
@@ -209,14 +265,77 @@ export default function Reports() {
         </div>
       ) : reportData ? (
         <div className="bg-white/5 border border-white/10 rounded-2xl p-6">
-          {reportData.summary && (
+          {/* Display Aggregates/Summary */}
+          {(reportData.aggregates || reportData.summary) && (
             <div className="mb-6 grid grid-cols-1 md:grid-cols-4 gap-4">
-              {Object.entries(reportData.summary).map(([key, value]) => (
-                <div key={key} className="bg-white/5 border border-white/10 rounded-xl p-4">
-                  <p className="text-sm text-gray-400 mb-1">{key.replace(/([A-Z])/g, ' $1').trim()}</p>
-                  <p className="text-2xl font-semibold text-white">{String(value)}</p>
-                </div>
-              ))}
+              {activeReport === 'overtime' && reportData.aggregates && (
+                <>
+                  <div className="bg-white/5 border border-white/10 rounded-xl p-4">
+                    <p className="text-sm text-gray-400 mb-1">Total Overtime Minutes</p>
+                    <p className="text-2xl font-semibold text-white">
+                      {reportData.aggregates.totalOvertimeMinutes || 0}
+                    </p>
+                  </div>
+                  <div className="bg-white/5 border border-white/10 rounded-xl p-4">
+                    <p className="text-sm text-gray-400 mb-1">Total Amount</p>
+                    <p className="text-2xl font-semibold text-white">
+                      {reportData.aggregates.totalAmount || 0}
+                    </p>
+                  </div>
+                  <div className="bg-white/5 border border-white/10 rounded-xl p-4">
+                    <p className="text-sm text-gray-400 mb-1">Total Records</p>
+                    <p className="text-2xl font-semibold text-white">
+                      {reportData.aggregates.count || 0}
+                    </p>
+                  </div>
+                </>
+              )}
+              {activeReport === 'penalty' && reportData.aggregates && (
+                <>
+                  <div className="bg-white/5 border border-white/10 rounded-xl p-4">
+                    <p className="text-sm text-gray-400 mb-1">Total Penalty Amount</p>
+                    <p className="text-2xl font-semibold text-white">
+                      {reportData.aggregates.totalAmount || 0}
+                    </p>
+                  </div>
+                  <div className="bg-white/5 border border-white/10 rounded-xl p-4">
+                    <p className="text-sm text-gray-400 mb-1">Total Penalty Minutes</p>
+                    <p className="text-2xl font-semibold text-white">
+                      {reportData.aggregates.totalMinutes || 0}
+                    </p>
+                  </div>
+                  <div className="bg-white/5 border border-white/10 rounded-xl p-4">
+                    <p className="text-sm text-gray-400 mb-1">Total Records</p>
+                    <p className="text-2xl font-semibold text-white">
+                      {reportData.aggregates.count || 0}
+                    </p>
+                  </div>
+                </>
+              )}
+              {activeReport === 'attendance' && reportData.summary && (
+                <>
+                  {Object.entries(reportData.summary).map(([key, value]) => (
+                    <div key={key} className="bg-white/5 border border-white/10 rounded-xl p-4">
+                      <p className="text-sm text-gray-400 mb-1">{key.replace(/([A-Z])/g, ' $1').trim()}</p>
+                      <p className="text-2xl font-semibold text-white">{String(value)}</p>
+                    </div>
+                  ))}
+                </>
+              )}
+            </div>
+          )}
+
+          {/* Pagination Info */}
+          {reportData.pagination && (
+            <div className="mb-4 text-sm text-gray-400">
+              Showing {((reportData.pagination.page - 1) * reportData.pagination.limit) + 1} to{' '}
+              {Math.min(reportData.pagination.page * reportData.pagination.limit, reportData.pagination.total)} of{' '}
+              {reportData.pagination.total} records
+              {reportData.pagination.totalPages > 1 && (
+                <span className="ml-2">
+                  (Page {reportData.pagination.page} of {reportData.pagination.totalPages})
+                </span>
+              )}
             </div>
           )}
 
@@ -225,21 +344,99 @@ export default function Reports() {
               <table className="w-full">
                 <thead className="bg-white/5 border-b border-white/10">
                   <tr>
-                    {Object.keys(reportData.data[0]).map((key) => (
-                      <th key={key} className="px-6 py-3 text-left text-sm font-semibold text-white">
-                        {key.replace(/([A-Z])/g, ' $1').trim()}
-                      </th>
-                    ))}
+                    {activeReport === 'overtime' && (
+                      <>
+                        <th className="px-6 py-3 text-left text-sm font-semibold text-white">Employee ID</th>
+                        <th className="px-6 py-3 text-left text-sm font-semibold text-white">Date</th>
+                        <th className="px-6 py-3 text-left text-sm font-semibold text-white">Overtime Minutes</th>
+                        <th className="px-6 py-3 text-left text-sm font-semibold text-white">Multiplier</th>
+                        <th className="px-6 py-3 text-left text-sm font-semibold text-white">Amount</th>
+                        <th className="px-6 py-3 text-left text-sm font-semibold text-white">Status</th>
+                        <th className="px-6 py-3 text-left text-sm font-semibold text-white">Weekend</th>
+                      </>
+                    )}
+                    {activeReport === 'penalty' && (
+                      <>
+                        <th className="px-6 py-3 text-left text-sm font-semibold text-white">Employee ID</th>
+                        <th className="px-6 py-3 text-left text-sm font-semibold text-white">Date</th>
+                        <th className="px-6 py-3 text-left text-sm font-semibold text-white">Type</th>
+                        <th className="px-6 py-3 text-left text-sm font-semibold text-white">Amount</th>
+                        <th className="px-6 py-3 text-left text-sm font-semibold text-white">Minutes</th>
+                        <th className="px-6 py-3 text-left text-sm font-semibold text-white">Status</th>
+                      </>
+                    )}
+                    {activeReport === 'attendance' && reportData.data[0] && (
+                      <>
+                        {Object.keys(reportData.data[0]).map((key) => (
+                          <th key={key} className="px-6 py-3 text-left text-sm font-semibold text-white">
+                            {key.replace(/([A-Z])/g, ' $1').trim()}
+                          </th>
+                        ))}
+                      </>
+                    )}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-white/10">
                   {reportData.data.map((row: any, index: number) => (
                     <tr key={index} className="hover:bg-white/5">
-                      {Object.values(row).map((value: any, cellIndex: number) => (
-                        <td key={cellIndex} className="px-6 py-4 text-white/70 text-sm">
-                          {typeof value === 'object' ? JSON.stringify(value) : String(value)}
-                        </td>
-                      ))}
+                      {activeReport === 'overtime' && (
+                        <>
+                          <td className="px-6 py-4 text-white/70 text-sm">
+                            {row.employeeId?.toString() || 'N/A'}
+                          </td>
+                          <td className="px-6 py-4 text-white/70 text-sm">
+                            {row.recordDate ? new Date(row.recordDate).toLocaleDateString() : 'N/A'}
+                          </td>
+                          <td className="px-6 py-4 text-white/70 text-sm">{row.overtimeMinutes || 0}</td>
+                          <td className="px-6 py-4 text-white/70 text-sm">{row.multiplier || 0}x</td>
+                          <td className="px-6 py-4 text-white/70 text-sm">{row.calculatedAmount || 0}</td>
+                          <td className="px-6 py-4 text-white/70 text-sm">
+                            <span className={`px-2 py-1 rounded text-xs ${
+                              row.status === 'APPROVED' ? 'bg-green-500/20 text-green-300' :
+                              row.status === 'PENDING' ? 'bg-yellow-500/20 text-yellow-300' :
+                              'bg-red-500/20 text-red-300'
+                            }`}>
+                              {row.status || 'N/A'}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 text-white/70 text-sm">
+                            {row.isWeekend ? '✓' : '✗'}
+                          </td>
+                        </>
+                      )}
+                      {activeReport === 'penalty' && (
+                        <>
+                          <td className="px-6 py-4 text-white/70 text-sm">
+                            {row.employeeId?.toString() || 'N/A'}
+                          </td>
+                          <td className="px-6 py-4 text-white/70 text-sm">
+                            {row.recordDate ? new Date(row.recordDate).toLocaleDateString() : 'N/A'}
+                          </td>
+                          <td className="px-6 py-4 text-white/70 text-sm">{row.type || 'N/A'}</td>
+                          <td className="px-6 py-4 text-white/70 text-sm">{row.amount || 0}</td>
+                          <td className="px-6 py-4 text-white/70 text-sm">{row.minutes || 0}</td>
+                          <td className="px-6 py-4 text-white/70 text-sm">
+                            <span className={`px-2 py-1 rounded text-xs ${
+                              row.status === 'APPROVED' ? 'bg-green-500/20 text-green-300' :
+                              row.status === 'PENDING' ? 'bg-yellow-500/20 text-yellow-300' :
+                              'bg-red-500/20 text-red-300'
+                            }`}>
+                              {row.status || 'N/A'}
+                            </span>
+                          </td>
+                        </>
+                      )}
+                      {activeReport === 'attendance' && (
+                        <>
+                          {Object.values(row).map((value: any, cellIndex: number) => (
+                            <td key={cellIndex} className="px-6 py-4 text-white/70 text-sm">
+                              {typeof value === 'object' && value !== null
+                                ? JSON.stringify(value)
+                                : String(value || 'N/A')}
+                            </td>
+                          ))}
+                        </>
+                      )}
                     </tr>
                   ))}
                 </tbody>

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { recordPunch, getAttendance, correctAttendance, detectMissedPunch } from '../../../services/timeManagementApi';
+import { recordPunch, getAttendance, correctAttendance, detectMissedPunch, getEmployeeExceptions } from '../../../services/timeManagementApi';
 import { getCurrentUser } from '../../../utils/auth';
 
 interface Punch {
@@ -20,6 +20,18 @@ interface AttendanceRecord {
   exceptionIds?: string[];
 }
 
+interface TimeException {
+  _id?: string;
+  employeeId: string;
+  type: string;
+  attendanceRecordId?: string;
+  assignedTo?: string;
+  status: 'OPEN' | 'PENDING' | 'APPROVED' | 'REJECTED' | 'ESCALATED' | 'RESOLVED';
+  reason?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 export default function Attendance() {
   const [currentUser] = useState(getCurrentUser());
   const [employeeId, setEmployeeId] = useState(currentUser?.id || '');
@@ -31,10 +43,13 @@ export default function Attendance() {
   const [correctionPunches, setCorrectionPunches] = useState<Array<{ type: 'IN' | 'OUT'; timestamp: string }>>([]);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [myExceptions, setMyExceptions] = useState<TimeException[]>([]);
+  const [loadingExceptions, setLoadingExceptions] = useState(false);
 
   useEffect(() => {
     if (employeeId) {
       loadAttendance();
+      loadMyExceptions();
     }
   }, [employeeId, selectedDate]);
 
@@ -48,6 +63,20 @@ export default function Attendance() {
       setError(err.message || 'Failed to load attendance');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadMyExceptions = async () => {
+    if (!employeeId) return;
+    try {
+      setLoadingExceptions(true);
+      const response = await getEmployeeExceptions(employeeId);
+      setMyExceptions(response.data || []);
+    } catch (err: any) {
+      // Silently fail - exceptions might not be accessible to all roles
+      console.warn('Failed to load exceptions:', err.message);
+    } finally {
+      setLoadingExceptions(false);
     }
   };
 
@@ -110,6 +139,7 @@ export default function Attendance() {
       setShowCorrectionModal(false);
       setCorrectionPunches([]);
       loadAttendance();
+      loadMyExceptions(); // Reload exceptions to show the new request
     } catch (err: any) {
       setError(err.response?.data?.message || err.message || 'Failed to submit correction');
     }
@@ -325,6 +355,57 @@ export default function Attendance() {
               </div>
             </div>
           )}
+
+          {/* My Correction Requests & Status */}
+          <div className="bg-white/5 border border-white/10 rounded-2xl p-6">
+            <h3 className="text-lg font-semibold text-white mb-4">📋 My Correction Requests</h3>
+            {loadingExceptions ? (
+              <div className="flex items-center justify-center py-8">
+                <div className="animate-pulse">
+                  <div className="w-8 h-8 border-2 border-cyan-500/30 border-t-cyan-500 rounded-full"></div>
+                </div>
+              </div>
+            ) : myExceptions.filter(ex => ex.type === 'MISSED_PUNCH' || ex.type === 'MANUAL_ADJUSTMENT').length > 0 ? (
+              <div className="space-y-3">
+                {myExceptions
+                  .filter(ex => ex.type === 'MISSED_PUNCH' || ex.type === 'MANUAL_ADJUSTMENT')
+                  .map((exception) => (
+                    <div
+                      key={exception._id}
+                      className="flex items-center justify-between p-4 bg-white/5 rounded-xl border border-white/10"
+                    >
+                      <div className="flex-1">
+                        <div className="flex items-center gap-3 mb-2">
+                          <span className={`text-xs px-2 py-1 rounded-full border ${
+                            exception.status === 'APPROVED' ? 'bg-green-500/20 text-green-300 border-green-400/30' :
+                            exception.status === 'REJECTED' ? 'bg-red-500/20 text-red-300 border-red-400/30' :
+                            exception.status === 'PENDING' ? 'bg-yellow-500/20 text-yellow-300 border-yellow-400/30' :
+                            exception.status === 'ESCALATED' ? 'bg-orange-500/20 text-orange-300 border-orange-400/30' :
+                            'bg-blue-500/20 text-blue-300 border-blue-400/30'
+                          }`}>
+                            {exception.status}
+                          </span>
+                          <span className="text-sm text-white font-medium">
+                            {exception.type === 'MISSED_PUNCH' ? 'Missed Punch Correction' : 'Manual Adjustment'}
+                          </span>
+                        </div>
+                        {exception.reason && (
+                          <p className="text-sm text-gray-400 mb-1">{exception.reason}</p>
+                        )}
+                        <p className="text-xs text-gray-500">
+                          Submitted: {exception.createdAt ? new Date(exception.createdAt).toLocaleString() : 'N/A'}
+                          {exception.updatedAt && exception.updatedAt !== exception.createdAt && (
+                            <> • Updated: {new Date(exception.updatedAt).toLocaleString()}</>
+                          )}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+              </div>
+            ) : (
+              <p className="text-center text-gray-400 text-sm py-4">No correction requests submitted yet</p>
+            )}
+          </div>
         </div>
       ) : (
         <div className="text-center py-12 bg-white/5 border border-white/10 rounded-2xl">

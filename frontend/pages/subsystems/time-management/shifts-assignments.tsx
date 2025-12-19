@@ -7,6 +7,7 @@ import {
   renewAssignment,
   getShiftTemplates 
 } from '../../../services/timeManagementApi';
+import { getCurrentUserRole } from '../../../utils/auth';
 
 interface ShiftAssignment {
   _id?: string;
