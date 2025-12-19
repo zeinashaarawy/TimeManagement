@@ -91,21 +91,78 @@ export default function ShiftsAssignments() {
     setSuccess(null);
 
     try {
-      const assignmentData: any = {
-        shiftTemplateId: formData.shiftTemplateId,
-        effectiveFrom: formData.effectiveFrom,
-        effectiveTo: formData.effectiveTo,
-        reason: formData.reason || undefined,
-      };
-
-      if (formData.assignmentType === 'individual') {
-        assignmentData.employeeId = formData.employeeId;
-      } else if (formData.assignmentType === 'department') {
-        assignmentData.departmentId = formData.departmentId;
-      } else if (formData.assignmentType === 'position') {
-        assignmentData.positionId = formData.positionId;
+      // Validate required fields
+      if (!formData.shiftTemplateId) {
+        setError('Please select a shift template');
+        return;
       }
 
+      if (!formData.effectiveFrom) {
+        setError('Effective From date is required');
+        return;
+      }
+
+      if (!formData.effectiveTo) {
+        setError('Effective To date is required');
+        return;
+      }
+
+      // Validate that exactly one target is selected
+      const targetCount = [
+        formData.assignmentType === 'individual' && formData.employeeId,
+        formData.assignmentType === 'department' && formData.departmentId,
+        formData.assignmentType === 'position' && formData.positionId,
+      ].filter(Boolean).length;
+
+      if (targetCount !== 1) {
+        setError('Please select an employee, department, or position');
+        return;
+      }
+
+      // Validate date range
+      const fromDate = new Date(formData.effectiveFrom);
+      const toDate = new Date(formData.effectiveTo);
+      if (fromDate >= toDate) {
+        setError('Effective From date must be before Effective To date');
+        return;
+      }
+
+      // Prepare assignment data with proper date format
+      const assignmentData: any = {
+        shiftTemplateId: formData.shiftTemplateId.trim(),
+        effectiveFrom: new Date(formData.effectiveFrom).toISOString(),
+        effectiveTo: new Date(formData.effectiveTo).toISOString(),
+      };
+
+      // Add metadata if reason is provided
+      if (formData.reason) {
+        assignmentData.metadata = {
+          reason: formData.reason,
+        };
+      }
+
+      // Add exactly one target
+      if (formData.assignmentType === 'individual') {
+        if (!formData.employeeId?.trim()) {
+          setError('Employee ID is required');
+          return;
+        }
+        assignmentData.employeeId = formData.employeeId.trim();
+      } else if (formData.assignmentType === 'department') {
+        if (!formData.departmentId?.trim()) {
+          setError('Department ID is required');
+          return;
+        }
+        assignmentData.departmentId = formData.departmentId.trim();
+      } else if (formData.assignmentType === 'position') {
+        if (!formData.positionId?.trim()) {
+          setError('Position ID is required');
+          return;
+        }
+        assignmentData.positionId = formData.positionId.trim();
+      }
+
+      console.log('Submitting assignment data:', assignmentData);
       await assignShift(assignmentData);
       setSuccess('Shift assigned successfully');
       setShowModal(false);
@@ -121,7 +178,32 @@ export default function ShiftsAssignments() {
       });
       loadData();
     } catch (err: any) {
-      setError(err.response?.data?.message || err.message || 'Failed to assign shift');
+      console.error('Assignment error:', err);
+      console.error('Error response:', err.response?.data);
+      
+      // Extract detailed error message
+      let errorMessage = 'Failed to assign shift';
+      if (err.response?.data) {
+        if (typeof err.response.data === 'string') {
+          errorMessage = err.response.data;
+        } else if (err.response.data.message) {
+          errorMessage = err.response.data.message;
+        } else if (err.response.data.error) {
+          errorMessage = err.response.data.error;
+        } else if (Array.isArray(err.response.data) && err.response.data.length > 0) {
+          // Handle validation error array from class-validator
+          errorMessage = err.response.data.map((e: any) => {
+            if (typeof e === 'string') return e;
+            return e.message || Object.values(e.constraints || {}).join(', ');
+          }).join('; ');
+        } else if (err.response.data.statusCode === 400) {
+          errorMessage = err.response.data.message || 'Invalid request data. Please check all fields.';
+        }
+      } else if (err.message) {
+        errorMessage = err.message;
+      }
+      
+      setError(errorMessage);
     }
   };
 
@@ -131,23 +213,65 @@ export default function ShiftsAssignments() {
     setSuccess(null);
 
     try {
+      // Validate required fields
+      if (!bulkFormData.shiftTemplateId) {
+        setError('Please select a shift template');
+        return;
+      }
+
+      if (!bulkFormData.effectiveFrom) {
+        setError('Effective From date is required');
+        return;
+      }
+
+      if (!bulkFormData.effectiveTo) {
+        setError('Effective To date is required');
+        return;
+      }
+
+      // Validate date range
+      const fromDate = new Date(bulkFormData.effectiveFrom);
+      const toDate = new Date(bulkFormData.effectiveTo);
+      if (fromDate >= toDate) {
+        setError('Effective From date must be before Effective To date');
+        return;
+      }
+
+      // Prepare bulk assignment data with proper date format
       const bulkData: any = {
-        shiftTemplateId: bulkFormData.shiftTemplateId,
-        effectiveFrom: bulkFormData.effectiveFrom,
-        effectiveTo: bulkFormData.effectiveTo,
-        reason: bulkFormData.reason || undefined,
+        shiftTemplateId: bulkFormData.shiftTemplateId.trim(),
+        effectiveFrom: new Date(bulkFormData.effectiveFrom).toISOString(),
+        effectiveTo: new Date(bulkFormData.effectiveTo).toISOString(),
       };
 
+      // Add metadata if reason is provided
+      if (bulkFormData.reason) {
+        bulkData.metadata = {
+          reason: bulkFormData.reason,
+        };
+      }
+
+      // Add target (department or position)
       if (bulkFormData.assignmentType === 'department') {
-        bulkData.departmentId = bulkFormData.departmentId;
+        if (!bulkFormData.departmentId?.trim()) {
+          setError('Department ID is required');
+          return;
+        }
+        bulkData.departmentId = bulkFormData.departmentId.trim();
       } else if (bulkFormData.assignmentType === 'position') {
-        bulkData.positionId = bulkFormData.positionId;
+        if (!bulkFormData.positionId?.trim()) {
+          setError('Position ID is required');
+          return;
+        }
+        bulkData.positionId = bulkFormData.positionId.trim();
       }
 
+      // Add employee IDs if provided
       if (bulkFormData.employeeIds.length > 0) {
-        bulkData.employeeIds = bulkFormData.employeeIds;
+        bulkData.employeeIds = bulkFormData.employeeIds.map(id => id.trim()).filter(Boolean);
       }
 
+      console.log('Submitting bulk assignment data:', bulkData);
       await bulkAssignShift(bulkData);
       setSuccess('Bulk shift assignment completed successfully');
       setShowBulkModal(false);
@@ -163,7 +287,30 @@ export default function ShiftsAssignments() {
       });
       loadData();
     } catch (err: any) {
-      setError(err.response?.data?.message || err.message || 'Failed to bulk assign shifts');
+      console.error('Bulk assignment error:', err);
+      console.error('Error response:', err.response?.data);
+      
+      // Extract detailed error message
+      let errorMessage = 'Failed to bulk assign shifts';
+      if (err.response?.data) {
+        if (typeof err.response.data === 'string') {
+          errorMessage = err.response.data;
+        } else if (err.response.data.message) {
+          errorMessage = err.response.data.message;
+        } else if (err.response.data.error) {
+          errorMessage = err.response.data.error;
+        } else if (Array.isArray(err.response.data) && err.response.data.length > 0) {
+          // Handle validation error array
+          errorMessage = err.response.data.map((e: any) => {
+            if (typeof e === 'string') return e;
+            return e.message || Object.values(e.constraints || {}).join(', ');
+          }).join('; ');
+        }
+      } else if (err.message) {
+        errorMessage = err.message;
+      }
+      
+      setError(errorMessage);
     }
   };
 

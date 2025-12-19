@@ -122,9 +122,84 @@ const TimeManagementAPI = axios.create({
 });
 
 TimeManagementAPI.interceptors.request.use((config) => {
+  // Serialize dates
   if (config.data) {
     config.data = serializeDates(config.data);
   }
+  
+  // Add authentication headers
+  if (typeof window !== 'undefined') {
+    const token = localStorage.getItem('token') || localStorage.getItem('access_token');
+    const userId = localStorage.getItem('userId') || localStorage.getItem('user_id');
+    const userRole = localStorage.getItem('userRole') || localStorage.getItem('role');
+    
+    if (token) {
+      config.headers = config.headers || {};
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    
+    if (userId) {
+      config.headers = config.headers || {};
+      config.headers['x-user-id'] = userId;
+    }
+    
+    if (userRole) {
+      config.headers = config.headers || {};
+      // Map role formats to match backend expectations
+      // Backend uses mixed formats: "HR_ADMIN" (underscore) or "HR Manager" (space)
+      // The RolesGuard normalizes both, so we can send either format
+      // We'll send the format that matches backend decorators exactly
+      const roleMapping: Record<string, string> = {
+        // HR roles - backend uses both "HR Manager" and "HR_ADMIN"
+        'hr manager': 'HR Manager',  // Matches backend decorator
+        'hr_manager': 'HR_ADMIN',   // Matches backend decorator
+        'hrmanager': 'HR Manager',
+        'hr admin': 'HR_ADMIN',     // Backend uses HR_ADMIN in decorators
+        'hr_admin': 'HR_ADMIN',
+        'hradmin': 'HR_ADMIN',
+        // System Admin - backend uses "SYSTEM_ADMIN"
+        'system admin': 'SYSTEM_ADMIN',
+        'system_admin': 'SYSTEM_ADMIN',
+        'systemadmin': 'SYSTEM_ADMIN',
+        // Employee roles
+        'employee': 'EMPLOYEE',
+        'department employee': 'department employee',
+        'department employee': 'department employee',
+        'department_head': 'department head',
+        'departmenthead': 'department head',
+        // Payroll roles
+        'payroll manager': 'Payroll Manager',
+        'payroll_manager': 'Payroll Manager',
+        'payroll specialist': 'Payroll Specialist',
+        'payroll_specialist': 'Payroll Specialist',
+      };
+      
+      // Normalize input (lowercase, replace underscores/spaces)
+      const normalizedInput = userRole.toLowerCase().trim().replace(/_/g, ' ');
+      // Map to backend format, or use original if no mapping found
+      const mappedRole = roleMapping[normalizedInput] || userRole;
+      
+      // Log for debugging - always log to help debug 403 errors
+      console.log('[API] Role mapping:', {
+        original: userRole,
+        normalized: normalizedInput,
+        mapped: mappedRole,
+        url: config.url,
+        method: config.method,
+      });
+      
+      config.headers = config.headers || {};
+      config.headers['x-user-role'] = mappedRole;
+      
+      // Also log the final headers being sent
+      console.log('[API] Request headers:', {
+        'x-user-id': config.headers['x-user-id'],
+        'x-user-role': config.headers['x-user-role'],
+        'Authorization': config.headers['Authorization'] ? 'Bearer ***' : 'none',
+      });
+    }
+  }
+  
   return config;
 });
 

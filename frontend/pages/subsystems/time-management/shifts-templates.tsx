@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { getShiftTemplates, createShiftTemplate, updateShiftTemplate, deleteShiftTemplate } from '../../../services/timeManagementApi';
+import { getCurrentUserRole } from '../../../utils/auth';
 
 interface ShiftTemplate {
   _id?: string;
@@ -43,6 +44,24 @@ export default function ShiftsTemplates() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
+  // Check if user can create/edit/delete templates
+  // Always check current role from localStorage/JWT, not from state
+  // Use the same method as the API interceptor to ensure consistency
+  const canManageTemplates = (): boolean => {
+    if (typeof window === 'undefined') return false;
+    
+    // Use the same logic as the API interceptor to ensure consistency
+    const userRole = localStorage.getItem('userRole') || localStorage.getItem('role');
+    if (!userRole) return false;
+    
+    const role = userRole.toLowerCase().trim();
+    return role === 'hr manager' || 
+           role === 'hr admin' || 
+           role === 'hr_admin' ||
+           role === 'system admin' ||
+           role === 'system_admin';
+  };
+
   useEffect(() => {
     loadTemplates();
   }, []);
@@ -63,6 +82,24 @@ export default function ShiftsTemplates() {
     e.preventDefault();
     setError(null);
     setSuccess(null);
+
+    // Check permissions before submitting
+    const canManage = canManageTemplates();
+    const currentRole = getCurrentUserRole();
+    
+    // Debug logging
+    console.log('[ShiftsTemplates] Permission check:', {
+      currentRole,
+      canManage,
+      editingTemplate: editingTemplate?._id,
+    });
+
+    if (!canManage) {
+      const errorMsg = `Access denied: You do not have permission to ${editingTemplate ? 'edit' : 'create'} shift templates. Your current role is "${currentRole || 'unknown'}". Please contact HR Manager or System Admin.`;
+      setError(errorMsg);
+      console.warn('[ShiftsTemplates] Permission denied:', errorMsg);
+      return;
+    }
 
     try {
       // Validate based on shift type
@@ -109,11 +146,21 @@ export default function ShiftsTemplates() {
       });
       loadTemplates();
     } catch (err: any) {
-      setError(err.response?.data?.message || err.message || 'Failed to save shift template');
+      // Handle 403 Forbidden errors specifically
+      if (err.response?.status === 403) {
+        setError('Access denied: You do not have permission to perform this action. Please contact HR Manager or System Admin.');
+      } else {
+        setError(err.response?.data?.message || err.message || 'Failed to save shift template');
+      }
     }
   };
 
   const handleEdit = (template: ShiftTemplate) => {
+    // Check permissions before opening edit modal
+    if (!canManageTemplates()) {
+      setError('You do not have permission to edit shift templates. Please contact HR Manager or System Admin.');
+      return;
+    }
     setEditingTemplate(template);
     setFormData({
       name: template.name,
@@ -137,6 +184,11 @@ export default function ShiftsTemplates() {
   };
 
   const handleDelete = async (id: string) => {
+    // Check permissions before deleting
+    if (!canManageTemplates()) {
+      setError('You do not have permission to delete shift templates. Please contact HR Manager or System Admin.');
+      return;
+    }
     if (!confirm('Are you sure you want to delete this shift template?')) return;
 
     try {
@@ -144,7 +196,12 @@ export default function ShiftsTemplates() {
       setSuccess('Shift template deleted successfully');
       loadTemplates();
     } catch (err: any) {
-      setError(err.response?.data?.message || err.message || 'Failed to delete shift template');
+      // Handle 403 Forbidden errors specifically
+      if (err.response?.status === 403) {
+        setError('Access denied: You do not have permission to delete shift templates. Please contact HR Manager or System Admin.');
+      } else {
+        setError(err.response?.data?.message || err.message || 'Failed to delete shift template');
+      }
     }
   };
 
@@ -198,25 +255,27 @@ export default function ShiftsTemplates() {
           <h2 className="text-2xl font-semibold mb-2 text-white">Shift Templates</h2>
           <p className="text-gray-400 text-sm">Create and manage shift templates for different work arrangements</p>
         </div>
-        <button
-          onClick={() => {
-            setEditingTemplate(null);
-            setFormData({
-              name: '',
-              type: 'normal',
-              startTime: '09:00',
-              endTime: '17:00',
-              gracePeriod: 15,
-              isOvernight: false,
-              status: 'Active',
-              restDays: [],
-            });
-            setShowModal(true);
-          }}
-          className="px-6 py-3 bg-gradient-to-r from-teal-500 to-emerald-500 rounded-xl hover:from-teal-400 hover:to-emerald-400 transition-all"
-        >
-          + Create Shift Template
-        </button>
+        {canManageTemplates() && (
+          <button
+            onClick={() => {
+              setEditingTemplate(null);
+              setFormData({
+                name: '',
+                type: 'normal',
+                startTime: '09:00',
+                endTime: '17:00',
+                gracePeriod: 15,
+                isOvernight: false,
+                status: 'Active',
+                restDays: [],
+              });
+              setShowModal(true);
+            }}
+            className="px-6 py-3 bg-gradient-to-r from-teal-500 to-emerald-500 rounded-xl hover:from-teal-400 hover:to-emerald-400 transition-all"
+          >
+            + Create Shift Template
+          </button>
+        )}
       </div>
 
       {/* Messages */}
@@ -294,20 +353,29 @@ export default function ShiftsTemplates() {
               <p className="text-sm text-gray-400 mb-4">{template.description}</p>
             )}
 
-            <div className="flex gap-2 mt-4">
-              <button
-                onClick={() => handleEdit(template)}
-                className="flex-1 px-4 py-2 bg-white/5 border border-white/10 rounded-xl hover:bg-white/10 text-sm"
-              >
-                Edit
-              </button>
-              <button
-                onClick={() => template._id && handleDelete(template._id)}
-                className="px-4 py-2 bg-red-500/10 border border-red-500/20 rounded-xl hover:bg-red-500/20 text-red-300 text-sm"
-              >
-                Delete
-              </button>
-            </div>
+            {canManageTemplates() && (
+              <div className="flex gap-2 mt-4">
+                <button
+                  onClick={() => handleEdit(template)}
+                  className="flex-1 px-4 py-2 bg-white/5 border border-white/10 rounded-xl hover:bg-white/10 text-sm"
+                >
+                  Edit
+                </button>
+                <button
+                  onClick={() => template._id && handleDelete(template._id)}
+                  className="px-4 py-2 bg-red-500/10 border border-red-500/20 rounded-xl hover:bg-red-500/20 text-red-300 text-sm"
+                >
+                  Delete
+                </button>
+              </div>
+            )}
+            {!canManageTemplates() && (
+              <div className="mt-4 p-3 bg-yellow-500/10 border border-yellow-500/20 rounded-xl">
+                <p className="text-yellow-300 text-xs">
+                  ⚠️ You don't have permission to edit or delete shift templates. Contact HR Manager or System Admin.
+                </p>
+              </div>
+            )}
           </div>
         ))}
       </div>
@@ -315,12 +383,14 @@ export default function ShiftsTemplates() {
       {templates.length === 0 && (
         <div className="text-center py-12">
           <p className="text-gray-400 mb-4">No shift templates found</p>
-          <button
-            onClick={() => setShowModal(true)}
-            className="px-6 py-3 bg-gradient-to-r from-teal-500 to-emerald-500 rounded-xl"
-          >
-            Create Your First Template
-          </button>
+          {canManageTemplates() && (
+            <button
+              onClick={() => setShowModal(true)}
+              className="px-6 py-3 bg-gradient-to-r from-teal-500 to-emerald-500 rounded-xl"
+            >
+              Create Your First Template
+            </button>
+          )}
         </div>
       )}
 
@@ -346,6 +416,26 @@ export default function ShiftsTemplates() {
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-6">
+              {/* Error Message */}
+              {error && (
+                <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-xl text-red-300 text-sm">
+                  <div className="flex items-start gap-2">
+                    <span className="text-red-400">⚠️</span>
+                    <span>{error}</span>
+                  </div>
+                </div>
+              )}
+              
+              {/* Success Message */}
+              {success && (
+                <div className="p-4 bg-green-500/10 border border-green-500/20 rounded-xl text-green-300 text-sm">
+                  <div className="flex items-start gap-2">
+                    <span className="text-green-400">✓</span>
+                    <span>{success}</span>
+                  </div>
+                </div>
+              )}
+
               {/* Name */}
               <div>
                 <label className="block text-sm text-gray-400 mb-2">Shift Name *</label>

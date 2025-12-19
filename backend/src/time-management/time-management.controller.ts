@@ -7,6 +7,8 @@ import {
   Query,
   BadRequestException,
   UseGuards,
+  UsePipes,
+  ValidationPipe,
 } from '@nestjs/common';
 import { TimeManagementService } from './time-management.service';
 import { CreatePunchDto } from './attendance/dto/create-punch.dto';
@@ -21,11 +23,38 @@ export class TimeManagementController {
 
   // ------------------- RECORD A PUNCH -------------------
   @Post('punch')
+  @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
   async recordPunch(@Body() dto: CreatePunchDto) {
-    if (!dto.employeeId || !dto.timestamp || !dto.type) {
-      throw new BadRequestException('Missing required punch data');
+    try {
+      // Transform timestamp string to Date if needed
+      if (dto.timestamp && typeof dto.timestamp === 'string') {
+        dto.timestamp = new Date(dto.timestamp);
+      }
+      
+      if (!dto.employeeId || !dto.timestamp || !dto.type) {
+        throw new BadRequestException('Missing required punch data');
+      }
+
+      // Validate employeeId format
+      if (!dto.employeeId.match(/^[0-9a-fA-F]{24}$/)) {
+        throw new BadRequestException('Invalid employee ID format');
+      }
+
+      return await this.tmService.recordPunch(dto);
+    } catch (error) {
+      // Log the error for debugging
+      console.error('[TimeManagementController] Error in recordPunch:', error);
+      
+      // Re-throw BadRequestException as-is
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+      
+      // Wrap other errors
+      throw new BadRequestException(
+        error.message || 'Failed to record punch',
+      );
     }
-    return this.tmService.recordPunch(dto);
   }
 
   // ------------------- GET ATTENDANCE -------------------

@@ -43,7 +43,7 @@ const tabs: Tab[] = [
     id: 'shifts-assignments',
     label: 'Shift Assignments',
     icon: '📅',
-    roles: ['HR Manager', 'System Admin', 'HR Admin'],
+    roles: ['HR Manager', 'System Admin', 'HR Admin', 'department employee', 'Employee', 'EMPLOYEE'],
   },
   {
     id: 'shifts-notifications',
@@ -61,7 +61,7 @@ const tabs: Tab[] = [
     id: 'attendance',
     label: 'Attendance',
     icon: '⏰',
-    roles: ['HR Manager', 'System Admin', 'HR Admin', 'department head', 'Employee'],
+    roles: ['HR Manager', 'System Admin', 'HR Admin', 'department head', 'department employee', 'Employee', 'EMPLOYEE'],
   },
   {
     id: 'exceptions',
@@ -97,11 +97,18 @@ export default function TimeManagementPage() {
   const [isLoading, setIsLoading] = useState(true);
 
   // Helper function to check tab access
+  // Use the same role detection as API interceptor for consistency
   const canAccessTab = (tabId: TabId, role: UserRole | null): boolean => {
     if (!role) return false;
     const tab = tabs.find(t => t.id === tabId);
     if (!tab) return false;
-    return tab.roles.some(r => r.toLowerCase() === role.toLowerCase());
+    
+    // Normalize both the role and tab roles for comparison
+    const normalizedRole = role.toLowerCase().trim().replace(/_/g, ' ');
+    return tab.roles.some(r => {
+      const normalizedTabRole = r.toLowerCase().trim().replace(/_/g, ' ');
+      return normalizedTabRole === normalizedRole;
+    });
   };
 
   useEffect(() => {
@@ -111,9 +118,14 @@ export default function TimeManagementPage() {
       return;
     }
 
-    // Get current user using the same auth utilities as index.tsx
+    // Get current user and role using the same method as API interceptor
+    // This ensures consistency between UI and API
     const user = getCurrentUser();
-    const role = getCurrentUserRole();
+    
+    // Use the same role detection as API interceptor
+    const role = (typeof window !== 'undefined') 
+      ? (localStorage.getItem('userRole') || localStorage.getItem('role') || null) as UserRole | null
+      : null;
     
     // Check if user is logged in
     if (!user && !role) {
@@ -127,14 +139,17 @@ export default function TimeManagementPage() {
     setUserRole(role);
     setIsLoading(false);
 
-    // Set default tab based on role
+    // Set default tab based on role - only show accessible tabs
     if (role) {
       const availableTabs = tabs.filter(tab => canAccessTab(tab.id, role));
       if (availableTabs.length > 0) {
-        setActiveTab(availableTabs[0].id);
+        // If current active tab is not accessible, switch to first available tab
+        if (!canAccessTab(activeTab, role)) {
+          setActiveTab(availableTabs[0].id);
+        }
       }
     }
-  }, [router]);
+  }, [router, activeTab]);
 
   const canAccessExceptions = (): boolean => {
     if (!userRole) return false;

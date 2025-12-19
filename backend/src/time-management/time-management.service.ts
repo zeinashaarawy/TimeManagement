@@ -47,8 +47,18 @@ export class TimeManagementService {
 
   // ------------------- RECORD A PUNCH -------------------
   async recordPunch(dto: CreatePunchDto) {
+    // Validate employeeId
+    if (!dto.employeeId || !Types.ObjectId.isValid(dto.employeeId)) {
+      throw new BadRequestException('Invalid employee ID');
+    }
+
     const employeeObjectId = new Types.ObjectId(dto.employeeId);
     const punchTime = new Date(dto.timestamp);
+
+    // Validate timestamp
+    if (isNaN(punchTime.getTime())) {
+      throw new BadRequestException('Invalid timestamp');
+    }
 
     // Prepare day boundaries
     const startOfDay = new Date(punchTime);
@@ -56,10 +66,14 @@ export class TimeManagementService {
     const endOfDay = new Date(punchTime);
     endOfDay.setHours(23, 59, 59, 999);
 
-    // Find today's attendance
+    // Find today's attendance using recordDate
+    // Use range query to handle any time-of-day variations
     let attendance = await this.attendanceModel.findOne({
       employeeId: employeeObjectId,
-      'punches.time': { $gte: startOfDay, $lte: endOfDay },
+      recordDate: {
+        $gte: startOfDay,
+        $lt: new Date(startOfDay.getTime() + 24 * 60 * 60 * 1000), // Next day
+      },
     });
 
     // Create new if none found

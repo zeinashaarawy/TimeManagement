@@ -75,7 +75,8 @@ export const getCurrentUserRole = (): UserRole | null => {
   }
   
   // 2. Check localStorage for stored role (fallback)
-  const storedRole = localStorage.getItem('userRole');
+  // Check both 'userRole' and 'role' keys for compatibility
+  const storedRole = localStorage.getItem('userRole') || localStorage.getItem('role');
   if (storedRole) {
     return storedRole as UserRole;
   }
@@ -89,9 +90,12 @@ export const getCurrentUserRole = (): UserRole | null => {
   }
   
   // 4. Default role for testing (REMOVE IN PRODUCTION)
+  // Only use default if no role is found anywhere
   // In production, return null if no valid auth is found
   if (process.env.NODE_ENV === 'development') {
-    return 'HR Manager'; // Default for development/testing
+    // Don't use default if there's a role in localStorage (even if it's 'department employee')
+    // This ensures consistency between getCurrentUserRole() and API interceptor
+    return null; // Let the API interceptor handle the actual role from localStorage
   }
   
   return null; // No role found - user needs to authenticate
