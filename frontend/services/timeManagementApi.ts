@@ -1,7 +1,7 @@
 import axios from "axios";
 
 // Base URL - automatically detects hostname when running in browser
-// Backend runs on port 3000 (or from env PORT), frontend on port 3001
+// Backend runs on port 5001 (or from env PORT), frontend on port 3001
 // This ensures API calls work when accessing via network IP (e.g., 172.20.10.3:3001)
 // You can override by setting NEXT_PUBLIC_API_URL in frontend/.env.local
 const getBaseURL = (): string => {
@@ -10,27 +10,31 @@ const getBaseURL = (): string => {
     return process.env.NEXT_PUBLIC_API_URL;
   }
   
-  // If running in browser, use current hostname but with backend port (3000 or from env)
+  // If running in browser, use current hostname but with backend port (5001 or from env)
   // This works for both localhost and network IPs (e.g., 172.20.10.3)
   if (typeof window !== 'undefined') {
     const hostname = window.location.hostname;
-    // Backend port defaults to 3000, but can be overridden via env
-    const backendPort = process.env.NEXT_PUBLIC_BACKEND_PORT || '3000';
-    return `http://${hostname}:${backendPort}`;
+    // Backend port defaults to 5001, but can be overridden via env
+    // IMPORTANT: Always use port 5001 for backend, not the frontend port
+    // Force port 5001 unless explicitly set via environment variable
+    const backendPort = process.env.NEXT_PUBLIC_BACKEND_PORT || '5001';
+    const baseURL = `http://${hostname}:${backendPort}`;
+    
+    // Log for debugging - always log in development
+    console.log('[API Config] BASE_URL:', baseURL);
+    console.log('[API Config] Frontend URL:', window.location.origin);
+    console.log('[API Config] Frontend Port:', window.location.port);
+    console.log('[API Config] Backend Port:', backendPort);
+    console.log('[API Config] NEXT_PUBLIC_BACKEND_PORT env:', process.env.NEXT_PUBLIC_BACKEND_PORT || 'not set (using default 5001)');
+    
+    return baseURL;
   }
   
   // Server-side fallback (SSR)
-  return process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
+  return process.env.NEXT_PUBLIC_API_URL || "http://localhost:5001";
 };
 
 const BASE_URL = getBaseURL();
-
-// Log BASE_URL in development for debugging
-if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
-  console.log('[API] BASE_URL:', BASE_URL);
-  console.log('[API] Frontend URL:', window.location.origin);
-  console.log('[API] Backend Port:', process.env.NEXT_PUBLIC_BACKEND_PORT || '3000');
-}
 
 // ==========================================
 // API INSTANCES - Matching Backend Controllers
@@ -64,13 +68,11 @@ const handleError = (error: any) => {
     const contentType = error.response.headers?.['content-type'] || '';
     if (contentType.includes('text/html') || (typeof error.response.data === 'string' && error.response.data.includes('<!DOCTYPE html>'))) {
       const requestUrl = error.config?.url || error.config?.baseURL || 'unknown';
-      throw new Error(
-        `API endpoint not found (404). The request was sent to: ${requestUrl}. ` +
+      message = `API endpoint not found (404). The request was sent to: ${requestUrl}. ` +
         `This usually means:\n` +
         `1. The backend server is not running (check if it's running on port ${process.env.NEXT_PUBLIC_BACKEND_PORT || '3000'})\n` +
         `2. The API URL is incorrect (current BASE_URL: ${BASE_URL})\n` +
-        `3. The endpoint doesn't exist on the backend`
-      );
+        `3. The endpoint doesn't exist on the backend`;
     }
     
     try {
@@ -98,18 +100,28 @@ const handleError = (error: any) => {
       message = error.message || 'An error occurred';
     }
     
-    throw new Error(`${message} (Status: ${status})`);
+    // Attach the formatted message to the error object instead of throwing
+    // This allows the component to catch it properly without Next.js catching it as a runtime error
+    const formattedMessage = `${message} (Status: ${status})`;
+    error.formattedMessage = formattedMessage;
+    error.userMessage = message; // Store the clean message without status
+    // Don't throw - let the promise rejection handle it
   } else if (error.request) {
     // Request made but no response
-    throw new Error(
-      `Network error: No response from server. ` +
+    const networkMessage = `Network error: No response from server. ` +
       `Please check if the backend is running on ${BASE_URL}. ` +
-      `Make sure the backend server is started with 'npm run start:dev' in the backend directory.`
-    );
+      `Make sure the backend server is started with 'npm run start:dev' in the backend directory.`;
+    error.userMessage = networkMessage;
+    error.formattedMessage = networkMessage;
   } else {
     // Something else happened
-    throw new Error(error.message || 'An unexpected error occurred');
+    const defaultMessage = error.message || 'An unexpected error occurred';
+    error.userMessage = defaultMessage;
+    error.formattedMessage = defaultMessage;
   }
+  
+  // NEVER throw - always attach properties to error object
+  // The interceptor will reject the promise, which the component can catch
 };
 
 // Time Management API - @Controller('time-management')
@@ -118,9 +130,83 @@ const TimeManagementAPI = axios.create({
 });
 
 TimeManagementAPI.interceptors.request.use((config) => {
+  // Serialize dates
   if (config.data) {
     config.data = serializeDates(config.data);
   }
+  
+  // Add authentication headers
+  if (typeof window !== 'undefined') {
+    const token = localStorage.getItem('token') || localStorage.getItem('access_token');
+    const userId = localStorage.getItem('userId') || localStorage.getItem('user_id');
+    const userRole = localStorage.getItem('userRole') || localStorage.getItem('role');
+    
+    if (token) {
+      config.headers = config.headers || {};
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    
+    if (userId) {
+      config.headers = config.headers || {};
+      config.headers['x-user-id'] = userId;
+    }
+    
+    if (userRole) {
+      config.headers = config.headers || {};
+      // Map role formats to match backend expectations
+      // Backend uses mixed formats: "HR_ADMIN" (underscore) or "HR Manager" (space)
+      // The RolesGuard normalizes both, so we can send either format
+      // We'll send the format that matches backend decorators exactly
+      const roleMapping: Record<string, string> = {
+        // HR roles - backend uses both "HR Manager" and "HR_ADMIN"
+        'hr manager': 'HR Manager',  // Matches backend decorator
+        'hr_manager': 'HR_ADMIN',   // Matches backend decorator
+        'hrmanager': 'HR Manager',
+        'hr admin': 'HR_ADMIN',     // Backend uses HR_ADMIN in decorators
+        'hr_admin': 'HR_ADMIN',
+        'hradmin': 'HR_ADMIN',
+        // System Admin - backend uses "SYSTEM_ADMIN"
+        'system admin': 'SYSTEM_ADMIN',
+        'system_admin': 'SYSTEM_ADMIN',
+        'systemadmin': 'SYSTEM_ADMIN',
+        // Employee roles
+        'employee': 'EMPLOYEE',
+        'department employee': 'department employee',
+        'department_head': 'department head',
+        'departmenthead': 'department head',
+        // Payroll roles
+        'payroll manager': 'Payroll Manager',
+        'payroll_manager': 'Payroll Manager',
+        'payroll specialist': 'Payroll Specialist',
+        'payroll_specialist': 'Payroll Specialist',
+      };
+      
+      // Normalize input (lowercase, replace underscores/spaces)
+      const normalizedInput = userRole.toLowerCase().trim().replace(/_/g, ' ');
+      // Map to backend format, or use original if no mapping found
+      const mappedRole = roleMapping[normalizedInput] || userRole;
+      
+      // Log for debugging - always log to help debug 403 errors
+      console.log('[API] Role mapping:', {
+        original: userRole,
+        normalized: normalizedInput,
+        mapped: mappedRole,
+        url: config.url,
+        method: config.method,
+      });
+      
+      config.headers = config.headers || {};
+      config.headers['x-user-role'] = mappedRole;
+      
+      // Also log the final headers being sent
+      console.log('[API] Request headers:', {
+        'x-user-id': config.headers['x-user-id'],
+        'x-user-role': config.headers['x-user-role'],
+        'Authorization': config.headers['Authorization'] ? 'Bearer ***' : 'none',
+      });
+    }
+  }
+  
   return config;
 });
 
@@ -137,6 +223,8 @@ TimeManagementAPI.interceptors.response.use(
     return response;
   },
   (error) => {
+    // Handle error and attach user-friendly message
+    // This prevents Next.js from catching it as a runtime error
     handleError(error);
     return Promise.reject(error);
   }
@@ -508,6 +596,59 @@ export const triggerExpiryDetection = (daysBeforeExpiry?: number) => {
  */
 export const resolveShiftExpiryNotification = (id: string, data: { resolutionNotes?: string }) =>
   TimeManagementAPI.patch(`/notifications/shifts/${id}/resolve`, data);
+
+// ==========================================
+// SCHEDULING RULES ENDPOINTS
+// @Controller('scheduling-rules')
+// ==========================================
+
+/**
+ * Get all scheduling rules
+ * GET /time-management/scheduling-rules
+ */
+export const getSchedulingRules = () => TimeManagementAPI.get("/scheduling-rules");
+
+/**
+ * Get scheduling rule by ID
+ * GET /time-management/scheduling-rules/:id
+ */
+export const getSchedulingRule = (id: string) => TimeManagementAPI.get(`/scheduling-rules/${id}`);
+
+/**
+ * Create a new scheduling rule
+ * POST /time-management/scheduling-rules
+ */
+export const createSchedulingRule = (data: any) => TimeManagementAPI.post("/scheduling-rules", data);
+
+/**
+ * Update a scheduling rule
+ * PATCH /time-management/scheduling-rules/:id
+ */
+export const updateSchedulingRule = (id: string, data: any) => 
+  TimeManagementAPI.patch(`/scheduling-rules/${id}`, data);
+
+/**
+ * Toggle scheduling rule active status
+ * PATCH /time-management/scheduling-rules/:id/toggle-active
+ */
+export const toggleSchedulingRuleActive = (id: string) => 
+  TimeManagementAPI.patch(`/scheduling-rules/${id}/toggle-active`);
+
+/**
+ * Delete a scheduling rule
+ * DELETE /time-management/scheduling-rules/:id
+ */
+export const deleteSchedulingRule = (id: string) => TimeManagementAPI.delete(`/scheduling-rules/${id}`);
+
+// Export scheduling rules API object for convenience
+export const schedulingRulesApi = {
+  getAll: getSchedulingRules,
+  getById: getSchedulingRule,
+  create: createSchedulingRule,
+  update: updateSchedulingRule,
+  toggleActive: toggleSchedulingRuleActive,
+  delete: deleteSchedulingRule,
+};
 
 // ==========================================
 // ATTENDANCE ENDPOINTS (Alternative)

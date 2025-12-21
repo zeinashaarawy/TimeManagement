@@ -87,6 +87,37 @@ export type WeekendRuleConfig = {
   specialRate?: number; // Special rate for weekend work
 };
 
+/**
+ * Permission Validation Rule Configuration
+ * BR-TM-16, BR-TM-17, BR-TM-18: Permission validation rules
+ * Defines limits and validation for time permission requests
+ */
+export type PermissionValidationRuleConfig = {
+  // Permission type limits (in minutes)
+  maxDurationMinutes?: {
+    EARLY_IN?: number; // Maximum early in duration
+    LATE_OUT?: number; // Maximum late out duration
+    OUT_OF_HOURS?: number; // Maximum out of hours duration
+    TOTAL?: number; // Maximum total adjustment duration
+  };
+  
+  // Date validation requirements
+  requireContractStartDate?: boolean; // Must be after contract start date
+  requireFinancialCalendar?: boolean; // Must be within financial calendar period
+  requireProbationEndDate?: boolean; // Must be after probation period ends
+  
+  // Approval requirements
+  requirePreApproval?: boolean; // Permission must be approved before use
+  requireManagerApproval?: boolean; // Requires manager approval
+  requireHRApproval?: boolean; // Requires HR approval for certain types
+  
+  // Payroll and benefits impact
+  affectsPayroll?: boolean; // Permission affects payroll calculations
+  affectsBenefits?: boolean; // Permission affects benefits calculations
+  payrollImpactType?: 'OVERTIME' | 'SHORT_TIME' | 'ADJUSTMENT' | 'NONE'; // How it affects payroll
+  benefitsImpactType?: 'ACCRUAL' | 'DEDUCTION' | 'NONE'; // How it affects benefits
+};
+
 export type TimePolicyDocument = HydratedDocument<TimePolicy>;
 
 @Schema({ timestamps: true })
@@ -121,6 +152,10 @@ export class TimePolicy {
   // Weekend rules
   @Prop({ type: Object, required: false })
   weekendRule?: WeekendRuleConfig;
+
+  // Permission validation rules (BR-TM-16, BR-TM-17, BR-TM-18)
+  @Prop({ type: Object, required: false })
+  permissionValidationRule?: PermissionValidationRuleConfig;
 
   // Rounding rules
   @Prop({ enum: RoundingRule, default: RoundingRule.NONE })

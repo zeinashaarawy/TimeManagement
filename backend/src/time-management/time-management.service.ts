@@ -20,6 +20,7 @@ import {
   TimeExceptionType,
   TimeExceptionStatus,
   PunchType,
+  PermissionType,
 } from './enums/index';
 import {
   NotificationLog,
@@ -28,7 +29,9 @@ import {
 import { PolicyEngineService } from './policy/services/policy-engine.service';
 import { ScheduleHelperService } from './attendance/services/schedule-helper.service';
 import { RepeatedLatenessService } from './attendance/services/repeated-lateness.service';
-import { forwardRef, Inject } from '@nestjs/common';
+import { PermissionValidationService } from './permission/services/permission-validation.service';
+import { DeviceSyncService } from './device/services/device-sync.service';
+import { forwardRef, Inject, Optional } from '@nestjs/common';
 
 @Injectable()
 export class TimeManagementService {
@@ -43,12 +46,45 @@ export class TimeManagementService {
     private readonly scheduleHelperService: ScheduleHelperService,
     @Inject(forwardRef(() => RepeatedLatenessService))
     private readonly repeatedLatenessService: RepeatedLatenessService,
+    @Inject(forwardRef(() => PermissionValidationService))
+    @Optional()
+    private readonly permissionValidationService?: PermissionValidationService,
+    @Inject(forwardRef(() => DeviceSyncService))
+    @Optional()
+    private readonly deviceSyncService?: DeviceSyncService,
   ) {}
 
   // ------------------- RECORD A PUNCH -------------------
-  async recordPunch(dto: CreatePunchDto) {
+  async recordPunch(dto: CreatePunchDto, isOnline: boolean = true) {
+    // Validate employeeId
+    if (!dto.employeeId || !Types.ObjectId.isValid(dto.employeeId)) {
+      throw new BadRequestException('Invalid employee ID');
+    }
+
     const employeeObjectId = new Types.ObjectId(dto.employeeId);
     const punchTime = new Date(dto.timestamp);
+
+    // Validate timestamp
+    if (isNaN(punchTime.getTime())) {
+      throw new BadRequestException('Invalid timestamp');
+    }
+
+    // BR-TM-13: If device is offline, queue the punch for sync
+    if (!isOnline && this.deviceSyncService && dto.device) {
+      await this.deviceSyncService.queueOfflinePunch(
+        dto.employeeId,
+        punchTime,
+        dto.type.toLowerCase() as 'in' | 'out',
+        dto.device || 'unknown',
+        dto.location,
+        dto.rawMetadata,
+      );
+      return {
+        message: 'Punch queued for sync when device reconnects',
+        queued: true,
+        device: dto.device,
+      };
+    }
 
     // Prepare day boundaries
     const startOfDay = new Date(punchTime);
@@ -56,10 +92,14 @@ export class TimeManagementService {
     const endOfDay = new Date(punchTime);
     endOfDay.setHours(23, 59, 59, 999);
 
-    // Find today's attendance
+    // Find today's attendance using recordDate
+    // Use range query to handle any time-of-day variations
     let attendance = await this.attendanceModel.findOne({
       employeeId: employeeObjectId,
-      'punches.time': { $gte: startOfDay, $lte: endOfDay },
+      recordDate: {
+        $gte: startOfDay,
+        $lt: new Date(startOfDay.getTime() + 24 * 60 * 60 * 1000), // Next day
+      },
     });
 
     // Create new if none found
@@ -330,6 +370,9 @@ export class TimeManagementService {
     reason: string,
     assignedToId: string,
     type?: TimeExceptionType,
+    permissionType?: PermissionType,
+    durationMinutes?: number,
+    requestedDate?: Date,
   ) {
     const exception = new this.exceptionModel({
       employeeId: new Types.ObjectId(employeeId),
@@ -338,7 +381,55 @@ export class TimeManagementService {
       type: type || TimeExceptionType.MISSED_PUNCH,
       status: TimeExceptionStatus.OPEN,
       assignedTo: new Types.ObjectId(assignedToId), // required field
+      permissionType,
+      durationMinutes,
+      requestedDate,
     });
+
+    // If this is a permission request, validate it (BR-TM-16, BR-TM-17, BR-TM-18)
+    if (permissionType && durationMinutes && requestedDate && this.permissionValidationService) {
+      try {
+        const validationResult = await this.permissionValidationService.validatePermission(
+          new Types.ObjectId(employeeId),
+          permissionType,
+          durationMinutes,
+          requestedDate,
+        );
+
+        if (!validationResult.valid) {
+          throw new BadRequestException(
+            `Permission validation failed: ${validationResult.errors.join(', ')}`,
+          );
+        }
+
+        // Update exception with validation results and impact
+        // Validation flags are set based on whether validation passed
+        if (validationResult.valid) {
+          exception.contractStartDateValidated = true;
+          exception.financialCalendarValidated = true;
+          exception.probationDateValidated = true;
+        }
+
+        if (validationResult.payrollImpact) {
+          exception.affectsPayroll = validationResult.payrollImpact.affectsPayroll;
+          exception.payrollImpactType = validationResult.payrollImpact.impactType;
+          exception.payrollImpactAmount = validationResult.payrollImpact.impactAmount;
+        }
+
+        if (validationResult.benefitsImpact) {
+          exception.affectsBenefits = validationResult.benefitsImpact.affectsBenefits;
+          exception.benefitsImpactType = validationResult.benefitsImpact.impactType;
+          exception.benefitsImpactAmount = validationResult.benefitsImpact.impactAmount;
+        }
+      } catch (error: any) {
+        // If validation service is not available, log warning but don't fail
+        if (error instanceof BadRequestException) {
+          throw error;
+        }
+        console.warn('Permission validation service not available:', error.message);
+      }
+    }
+
     return exception.save();
   }
 
@@ -441,6 +532,7 @@ export class TimeManagementService {
 
   /**
    * Approve a time exception
+   * BR-TM-18: Permission approval impacts payroll and benefits
    */
   async approveException(
     exceptionId: string,
@@ -458,6 +550,43 @@ export class TimeManagementService {
 
     if (exception.status === TimeExceptionStatus.REJECTED) {
       throw new BadRequestException('Cannot approve a rejected exception');
+    }
+
+    // If this is a permission request, ensure validation was completed (BR-TM-18)
+    // Note: Permission validation should be done before approval
+    // The validation service will be called via the controller if available
+    if (exception.permissionType) {
+      // Check if validation was completed
+      if (
+        !exception.contractStartDateValidated ||
+        !exception.financialCalendarValidated ||
+        !exception.probationDateValidated
+      ) {
+        // Log warning but allow approval (validation can be done separately)
+        console.warn(
+          `Permission exception ${exceptionId} approved without full validation. Consider validating before approval.`,
+        );
+      }
+
+      // Ensure payroll and benefits impact are tracked (BR-TM-18)
+      if (!exception.affectsPayroll && !exception.affectsBenefits) {
+        // Default impact based on permission type
+        if (!exception.payrollImpactType) {
+          switch (exception.permissionType) {
+            case PermissionType.LATE_OUT:
+            case PermissionType.OUT_OF_HOURS:
+              exception.payrollImpactType = 'OVERTIME';
+              exception.affectsPayroll = true;
+              break;
+            case PermissionType.EARLY_IN:
+              exception.payrollImpactType = 'ADJUSTMENT';
+              exception.affectsPayroll = true;
+              break;
+            default:
+              exception.payrollImpactType = 'NONE';
+          }
+        }
+      }
     }
 
     exception.status = TimeExceptionStatus.APPROVED;

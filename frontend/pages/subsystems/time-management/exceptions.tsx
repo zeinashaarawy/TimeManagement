@@ -1,328 +1,424 @@
-import { useState, useEffect } from "react";
-import { AlertCircle, CheckCircle, XCircle, Clock, User, Calendar } from "lucide-react";
-import { getCurrentUser, getCurrentUserRole, type UserRole } from "../../../utils/auth";
-import { 
-  getAllExceptions,
-  approveException,
-  rejectException 
-} from "../../../services/timeManagementApi";
+import React, { useState, useEffect } from 'react';
+import { getAllExceptions, approveException, rejectException, escalateException, createException } from '../../../services/timeManagementApi';
+import { getCurrentUser } from '../../../utils/auth';
 
 interface TimeException {
-  _id: string;
-  employeeId: string;
-  attendanceRecordId: string;
+  _id?: string;
+  employeeId: string | { _id: string; name?: string };
   type: string;
-  status: string;
-  reason: string;
-  assignedTo?: string;
-  createdAt: string;
+  attendanceRecordId?: string;
+  assignedTo?: string | { _id: string; name?: string };
+  status: 'OPEN' | 'PENDING' | 'APPROVED' | 'REJECTED' | 'ESCALATED' | 'RESOLVED';
+  reason?: string;
+  createdAt?: string;
   updatedAt?: string;
 }
 
-export default function Exceptions({ asTab = false }: { asTab?: boolean } = {}) {
-  const [user, setUser] = useState<{ id: string; role: UserRole; username: string } | null>(null);
-  const [userRole, setUserRole] = useState<UserRole | null>(null);
+export default function Exceptions() {
+  const [currentUser] = useState(getCurrentUser());
   const [exceptions, setExceptions] = useState<TimeException[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [filters, setFilters] = useState({
+    status: '',
+    employeeId: '',
+    assignedTo: '',
+  });
+  const [showActionModal, setShowActionModal] = useState(false);
+  const [selectedException, setSelectedException] = useState<TimeException | null>(null);
+  const [actionType, setActionType] = useState<'approve' | 'reject' | 'escalate'>('approve');
+  const [actionNotes, setActionNotes] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-  const [filter, setFilter] = useState<'ALL' | 'OPEN' | 'PENDING' | 'APPROVED' | 'REJECTED'>('OPEN');
-  const [selectedException, setSelectedException] = useState<TimeException | null>(null);
-  const [actionComment, setActionComment] = useState('');
-  const [processing, setProcessing] = useState<string | null>(null);
+  const [processing, setProcessing] = useState(false);
 
   useEffect(() => {
-    const currentUser = getCurrentUser();
-    const role = getCurrentUserRole();
-    setUser(currentUser);
-    setUserRole(role);
-    
-    if (currentUser && (role === 'HR Manager' || role === 'System Admin' || role === 'HR Admin')) {
-      loadExceptions();
-    }
-  }, [filter]);
+    loadExceptions();
+  }, [filters]);
 
   const loadExceptions = async () => {
-    setLoading(true);
-    setError(null);
     try {
+      setLoading(true);
       const response = await getAllExceptions({
-        status: filter !== 'ALL' ? filter : undefined,
+        status: filters.status || undefined,
+        employeeId: filters.employeeId || undefined,
+        assignedTo: filters.assignedTo || undefined,
       });
-      const data = response.data;
-      const exceptionsList = Array.isArray(data) ? data : (data?.exceptions || []);
-      setExceptions(exceptionsList);
+      setExceptions(response.data || []);
     } catch (err: any) {
-      console.error("Error loading exceptions:", err);
-      setError(err.response?.data?.message || err.message || "Failed to load exceptions");
+      setError(err.message || 'Failed to load exceptions');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleApprove = async (exception: TimeException) => {
-    if (!user) {
-      setError("User not found. Please log in.");
+  const handleAction = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!selectedException?._id) {
+      setError('No exception selected');
       return;
     }
 
-    if (!actionComment.trim()) {
-      setError("Please provide a comment for approval");
+    // Get user ID from multiple sources
+    const userId = currentUser?.id || 
+                   localStorage.getItem('userId') || 
+                   localStorage.getItem('x-user-id') ||
+                   '646576757365723132330000'; // Fallback dev user ID
+
+    if (!userId) {
+      setError('User ID not found. Please log in again.');
       return;
     }
-
-    setProcessing(exception._id);
-    setError(null);
-    setSuccess(null);
 
     try {
-      await approveException(exception._id, {
-        approvedBy: user.id,
-        notes: actionComment,
+      setProcessing(true);
+      setError(null);
+      setSuccess(null);
+      
+      console.log('Processing exception action:', {
+        exceptionId: selectedException._id,
+        actionType,
+        userId,
       });
 
-      setSuccess("Exception approved successfully!");
+      if (actionType === 'approve') {
+        const actionData = {
+          approvedBy: userId,
+          notes: actionNotes || undefined,
+        };
+        console.log('Approving exception with data:', actionData);
+        await approveException(selectedException._id, actionData);
+        setSuccess('Exception approved successfully');
+      } else if (actionType === 'reject') {
+        const actionData = {
+          rejectedBy: userId,
+          reason: actionNotes || undefined,
+        };
+        console.log('Rejecting exception with data:', actionData);
+        await rejectException(selectedException._id, actionData);
+        setSuccess('Exception rejected successfully');
+      } else if (actionType === 'escalate') {
+        const actionData = {
+          escalatedTo: userId,
+          reason: actionNotes || 'Escalated for review',
+        };
+        console.log('Escalating exception with data:', actionData);
+        await escalateException(selectedException._id, actionData);
+        setSuccess('Exception escalated successfully');
+      }
+
+      // Close modal and reload after success
+      setShowActionModal(false);
       setSelectedException(null);
-      setActionComment('');
-      await loadExceptions();
+      setActionNotes('');
+      // Reload exceptions after a short delay to ensure backend has processed
+      setTimeout(() => {
+        loadExceptions();
+      }, 500);
     } catch (err: any) {
-      console.error("Error approving exception:", err);
-      setError(err.response?.data?.message || err.message || "Failed to approve exception");
+      console.error('Exception action error:', err);
+      const errorMessage = err.response?.data?.message || 
+                          err.response?.data?.error || 
+                          err.message || 
+                          'Failed to process exception';
+      setError(errorMessage);
+      // Keep modal open so user can see the error and try again
     } finally {
-      setProcessing(null);
+      setProcessing(false);
     }
   };
 
-  const handleReject = async (exception: TimeException) => {
-    if (!user) {
-      setError("User not found. Please log in.");
-      return;
-    }
-
-    if (!actionComment.trim()) {
-      setError("Please provide a reason for rejection");
-      return;
-    }
-
-    setProcessing(exception._id);
-    setError(null);
-    setSuccess(null);
-
-    try {
-      await rejectException(exception._id, {
-        rejectedBy: user.id,
-        reason: actionComment,
-      });
-
-      setSuccess("Exception rejected successfully!");
-      setSelectedException(null);
-      setActionComment('');
-      await loadExceptions();
-    } catch (err: any) {
-      console.error("Error rejecting exception:", err);
-      setError(err.response?.data?.message || err.message || "Failed to reject exception");
-    } finally {
-      setProcessing(null);
-    }
-  };
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'APPROVED':
-        return 'bg-green-500/20 text-green-400 border-green-500/30';
-      case 'REJECTED':
-        return 'bg-red-500/20 text-red-400 border-red-500/30';
-      case 'OPEN':
-      case 'PENDING':
-        return 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30';
-      default:
-        return 'bg-gray-500/20 text-gray-400 border-gray-500/30';
-    }
+  const getStatusBadge = (status: string) => {
+    const colors: Record<string, string> = {
+      OPEN: 'bg-blue-500/20 text-blue-300 border-blue-400/30',
+      PENDING: 'bg-yellow-500/20 text-yellow-300 border-yellow-400/30',
+      APPROVED: 'bg-green-500/20 text-green-300 border-green-400/30',
+      REJECTED: 'bg-red-500/20 text-red-300 border-red-400/30',
+      ESCALATED: 'bg-orange-500/20 text-orange-300 border-orange-400/30',
+      RESOLVED: 'bg-gray-500/20 text-gray-300 border-gray-400/30',
+    };
+    return colors[status] || colors.OPEN;
   };
 
   const getTypeLabel = (type: string) => {
     return type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
   };
 
-  const canAccess = (): boolean => {
-    if (!userRole) return false;
-    return userRole === 'HR Manager' || userRole === 'System Admin' || userRole === 'HR Admin';
+  const getEmployeeName = (employeeId: any) => {
+    if (typeof employeeId === 'object' && employeeId?.name) {
+      return employeeId.name;
+    }
+    return typeof employeeId === 'string' ? employeeId : 'Unknown';
   };
 
-  const content = (
-    <div className={asTab ? "" : "min-h-screen bg-gradient-to-br from-slate-950 via-blue-950 to-slate-900 text-white px-6 py-12"}>
-      <div className={asTab ? "" : "max-w-7xl mx-auto"}>
-        {/* Header */}
-        {!asTab && (
-          <div className="mb-8">
-            <h1 className="text-4xl lg:text-5xl font-light mb-2">Exception Management</h1>
-            <p className="text-gray-400">Review and manage time exceptions</p>
+  if (loading) {
+    return (
+      <div className="w-full">
+        <div className="flex items-center justify-center py-12">
+          <div className="animate-pulse">
+            <div className="w-16 h-16 border-4 border-cyan-500/30 border-t-cyan-500 rounded-full"></div>
           </div>
-        )}
+        </div>
+      </div>
+    );
+  }
 
-        {!canAccess() ? (
-          <div className="text-center py-12">
-            <AlertCircle className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-            <p className="text-gray-400">You do not have permission to access exception management.</p>
-            <p className="text-gray-500 text-sm mt-2">Only HR Managers, System Admins, and HR Admins can access this page.</p>
+  return (
+    <div className="w-full">
+      <div className="mb-6">
+        <h2 className="text-2xl font-semibold mb-2 text-white">Time Exceptions</h2>
+        <p className="text-gray-400 text-sm">Review and manage attendance exceptions, corrections, and overtime requests</p>
+      </div>
+
+      {/* Messages */}
+      {error && (
+        <div className="mb-4 p-4 bg-red-500/10 border border-red-500/20 rounded-xl text-red-300">
+          {error}
+        </div>
+      )}
+      {success && (
+        <div className="mb-4 p-4 bg-green-500/10 border border-green-500/20 rounded-xl text-green-300">
+          {success}
+        </div>
+      )}
+
+      {/* Filters */}
+      <div className="mb-6 bg-white/5 border border-white/10 rounded-2xl p-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div>
+            <label className="block text-sm text-gray-400 mb-2">Status</label>
+            <select
+              value={filters.status}
+              onChange={(e) => setFilters({ ...filters, status: e.target.value })}
+              className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/10 text-white"
+            >
+              <option value="">All Statuses</option>
+              <option value="OPEN">Open</option>
+              <option value="PENDING">Pending</option>
+              <option value="APPROVED">Approved</option>
+              <option value="REJECTED">Rejected</option>
+              <option value="ESCALATED">Escalated</option>
+              <option value="RESOLVED">Resolved</option>
+            </select>
           </div>
-        ) : (
-          <>
-            {/* Error/Success Messages */}
-            {error && (
-              <div className="mb-6 p-4 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400">
-                {error}
-              </div>
-            )}
-            {success && (
-              <div className="mb-6 p-4 bg-green-500/10 border border-green-500/20 rounded-lg text-green-400">
-                {success}
-              </div>
-            )}
+          <div>
+            <label className="block text-sm text-gray-400 mb-2">Employee ID</label>
+            <input
+              type="text"
+              value={filters.employeeId}
+              onChange={(e) => setFilters({ ...filters, employeeId: e.target.value })}
+              className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/10 text-white"
+              placeholder="Filter by employee..."
+            />
+          </div>
+          <div>
+            <label className="block text-sm text-gray-400 mb-2">Assigned To</label>
+            <input
+              type="text"
+              value={filters.assignedTo}
+              onChange={(e) => setFilters({ ...filters, assignedTo: e.target.value })}
+              className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/10 text-white"
+              placeholder="Filter by assignee..."
+            />
+          </div>
+        </div>
+      </div>
 
-            {/* Filter Tabs */}
-            <div className="mb-6 flex gap-2 border-b border-white/10">
-              {(['ALL', 'OPEN', 'PENDING', 'APPROVED', 'REJECTED'] as const).map((status) => (
-                <button
-                  key={status}
-                  onClick={() => setFilter(status)}
-                  className={`px-6 py-3 border-b-2 transition-colors ${
-                    filter === status
-                      ? 'border-blue-400 text-blue-400'
-                      : 'border-transparent text-gray-400 hover:text-white'
-                  }`}
-                >
-                  {status}
-                </button>
-              ))}
+      {/* Exceptions List */}
+      <div className="space-y-4">
+        {exceptions.map((exception) => (
+          <div
+            key={exception._id}
+            className="bg-white/5 border border-white/10 rounded-2xl p-6 hover:border-white/20 transition-all"
+          >
+            <div className="flex items-start justify-between">
+              <div className="flex-1">
+                <div className="flex items-center gap-3 mb-3">
+                  <span className="text-2xl">⚠️</span>
+                  <div>
+                    <h3 className="text-lg font-semibold text-white">
+                      {getTypeLabel(exception.type)}
+                    </h3>
+                    <p className="text-sm text-gray-400">
+                      Employee: {getEmployeeName(exception.employeeId)}
+                    </p>
+                  </div>
+                </div>
+                {exception.reason && (
+                  <p className="text-sm text-gray-300 mb-3">{exception.reason}</p>
+                )}
+                <div className="flex items-center gap-4 text-sm">
+                  <div>
+                    <span className="text-gray-400">Status: </span>
+                    <span className={`px-2 py-1 rounded-full border text-xs ${getStatusBadge(exception.status)}`}>
+                      {exception.status}
+                    </span>
+                  </div>
+                  {exception.createdAt && (
+                    <div>
+                      <span className="text-gray-400">Created: </span>
+                      <span className="text-white">
+                        {new Date(exception.createdAt).toLocaleDateString()}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+              {exception.status === 'OPEN' || exception.status === 'PENDING' ? (
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => {
+                      setSelectedException(exception);
+                      setActionType('approve');
+                      setActionNotes('');
+                      setShowActionModal(true);
+                    }}
+                    className="px-4 py-2 bg-green-500/10 border border-green-500/20 rounded-xl text-green-300 hover:bg-green-500/20 text-sm"
+                  >
+                    Approve
+                  </button>
+                  <button
+                    onClick={() => {
+                      setSelectedException(exception);
+                      setActionType('reject');
+                      setActionNotes('');
+                      setShowActionModal(true);
+                    }}
+                    className="px-4 py-2 bg-red-500/10 border border-red-500/20 rounded-xl text-red-300 hover:bg-red-500/20 text-sm"
+                  >
+                    Reject
+                  </button>
+                  <button
+                    onClick={() => {
+                      setSelectedException(exception);
+                      setActionType('escalate');
+                      setActionNotes('');
+                      setShowActionModal(true);
+                    }}
+                    className="px-4 py-2 bg-orange-500/10 border border-orange-500/20 rounded-xl text-orange-300 hover:bg-orange-500/20 text-sm"
+                  >
+                    Escalate
+                  </button>
+                </div>
+              ) : null}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {exceptions.length === 0 && (
+        <div className="text-center py-12 bg-white/5 border border-white/10 rounded-2xl">
+          <p className="text-gray-400">No exceptions found</p>
+        </div>
+      )}
+
+      {/* Action Modal */}
+      {showActionModal && selectedException && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+          <div className="bg-gradient-to-br from-slate-900 via-blue-950 to-slate-900 border border-white/10 rounded-3xl p-8 max-w-md w-full">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-2xl font-semibold text-white">
+                {actionType === 'approve' ? 'Approve Exception' : actionType === 'reject' ? 'Reject Exception' : 'Escalate Exception'}
+              </h3>
+              <button
+                onClick={() => {
+                  setShowActionModal(false);
+                  setSelectedException(null);
+                  setActionNotes('');
+                  setError(null);
+                  setSuccess(null);
+                }}
+                className="p-2 hover:bg-white/10 rounded-lg"
+              >
+                <span className="text-white text-xl">×</span>
+              </button>
             </div>
 
-            {loading ? (
-              <div className="text-center py-12">
-                <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
-                <p className="text-gray-400 mt-4">Loading exceptions...</p>
-              </div>
-            ) : exceptions.length === 0 ? (
-              <div className="text-center py-12">
-                <AlertCircle className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-                <p className="text-gray-400">No exceptions found</p>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {exceptions.map((exception) => (
-                  <div
-                    key={exception._id}
-                    className="bg-white/5 border border-white/10 backdrop-blur-xl rounded-xl p-6"
-                  >
-                    <div className="flex items-start justify-between mb-4">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-3 mb-3">
-                          <span className={`px-3 py-1 rounded-lg border text-sm font-medium ${getStatusColor(exception.status)}`}>
-                            {exception.status}
-                          </span>
-                          <span className="px-3 py-1 bg-blue-500/20 text-blue-400 rounded-lg text-sm border border-blue-500/30">
-                            {getTypeLabel(exception.type)}
-                          </span>
-                        </div>
-                        <div className="space-y-2 mb-4">
-                          <div className="flex items-center gap-2 text-gray-300">
-                            <User className="w-4 h-4 text-gray-400" />
-                            <span className="text-sm">Employee ID: {exception.employeeId}</span>
-                          </div>
-                          <div className="flex items-center gap-2 text-gray-300">
-                            <Calendar className="w-4 h-4 text-gray-400" />
-                            <span className="text-sm">
-                              Submitted: {new Date(exception.createdAt).toLocaleString()}
-                            </span>
-                          </div>
-                        </div>
-                        <p className="text-gray-200 mb-4">{exception.reason}</p>
-                      </div>
-                      {(exception.status === 'OPEN' || exception.status === 'PENDING') && (
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() => setSelectedException(exception)}
-                            className="px-4 py-2 bg-blue-500/20 border border-blue-500/30 rounded-lg text-blue-400 hover:bg-blue-500/30 transition-colors"
-                          >
-                            Review
-                          </button>
-                        </div>
-                      )}
-                    </div>
+            <form onSubmit={handleAction} className="space-y-6">
+              {/* Error display in modal */}
+              {error && (
+                <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-xl text-red-300 text-sm">
+                  <p className="font-semibold mb-1">Error:</p>
+                  <p>{error}</p>
+                </div>
+              )}
+              
+              {/* Success display in modal */}
+              {success && (
+                <div className="p-3 bg-green-500/10 border border-green-500/20 rounded-xl text-green-300 text-sm">
+                  {success}
+                </div>
+              )}
 
-                    {/* Action Form */}
-                    {selectedException?._id === exception._id && (
-                      <div className="mt-4 p-4 bg-black/20 rounded-lg border border-white/10">
-                        <label className="block text-sm text-gray-400 mb-2">
-                          {selectedException.status === 'OPEN' || selectedException.status === 'PENDING'
-                            ? 'Comment (required for approval/rejection)'
-                            : 'Comment'}
-                        </label>
-                        <textarea
-                          value={actionComment}
-                          onChange={(e) => setActionComment(e.target.value)}
-                          placeholder="Enter your comment or reason..."
-                          rows={3}
-                          className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white placeholder-gray-500 mb-4"
-                        />
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() => handleApprove(exception)}
-                            disabled={processing === exception._id || !actionComment.trim()}
-                            className="flex items-center gap-2 px-6 py-2 bg-green-500/20 border border-green-500/30 rounded-lg text-green-400 hover:bg-green-500/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                          >
-                            {processing === exception._id ? (
-                              <>
-                                <div className="w-4 h-4 border-2 border-green-400 border-t-transparent rounded-full animate-spin"></div>
-                                Processing...
-                              </>
-                            ) : (
-                              <>
-                                <CheckCircle className="w-4 h-4" />
-                                Approve
-                              </>
-                            )}
-                          </button>
-                          <button
-                            onClick={() => handleReject(exception)}
-                            disabled={processing === exception._id || !actionComment.trim()}
-                            className="flex items-center gap-2 px-6 py-2 bg-red-500/20 border border-red-500/30 rounded-lg text-red-400 hover:bg-red-500/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                          >
-                            {processing === exception._id ? (
-                              <>
-                                <div className="w-4 h-4 border-2 border-red-400 border-t-transparent rounded-full animate-spin"></div>
-                                Processing...
-                              </>
-                            ) : (
-                              <>
-                                <XCircle className="w-4 h-4" />
-                                Reject
-                              </>
-                            )}
-                          </button>
-                          <button
-                            onClick={() => {
-                              setSelectedException(null);
-                              setActionComment('');
-                            }}
-                            className="px-6 py-2 bg-white/5 border border-white/10 rounded-lg hover:bg-white/10 transition-colors"
-                          >
-                            Cancel
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                ))}
+              <div>
+                <p className="text-sm text-gray-400 mb-2">Exception Type</p>
+                <p className="text-white">{getTypeLabel(selectedException.type)}</p>
               </div>
-            )}
-          </>
-        )}
-      </div>
+              <div>
+                <p className="text-sm text-gray-400 mb-2">Employee</p>
+                <p className="text-white">{getEmployeeName(selectedException.employeeId)}</p>
+              </div>
+              {process.env.NODE_ENV === 'development' && (
+                <div className="p-2 bg-gray-500/10 border border-gray-500/20 rounded text-xs text-gray-400">
+                  <p>Debug: User ID = {currentUser?.id || localStorage.getItem('userId') || 'Not found'}</p>
+                  <p>Exception ID = {selectedException._id}</p>
+                </div>
+              )}
+              <div>
+                <label className="block text-sm text-gray-400 mb-2">
+                  {actionType === 'escalate' ? 'Escalation Reason' : actionType === 'reject' ? 'Rejection Reason' : 'Notes'}
+                  {actionType === 'reject' && <span className="text-red-400 ml-1">*</span>}
+                </label>
+                <textarea
+                  value={actionNotes}
+                  onChange={(e) => setActionNotes(e.target.value)}
+                  className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/10 text-white"
+                  rows={4}
+                  placeholder={actionType === 'escalate' ? 'Enter escalation reason...' : actionType === 'reject' ? 'Enter rejection reason (required)...' : 'Enter notes (optional)...'}
+                  required={actionType === 'reject'}
+                />
+              </div>
+
+              <div className="flex gap-3 pt-4">
+                <button
+                  type="submit"
+                  disabled={processing || (actionType === 'reject' && !actionNotes.trim())}
+                  className={`flex-1 px-6 py-3 rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
+                    actionType === 'approve'
+                      ? 'bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-400 hover:to-emerald-400'
+                      : actionType === 'reject'
+                      ? 'bg-gradient-to-r from-red-500 to-rose-500 hover:from-red-400 hover:to-rose-400'
+                      : 'bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-400 hover:to-amber-400'
+                  }`}
+                >
+                  {processing 
+                    ? 'Processing...' 
+                    : actionType === 'approve' 
+                      ? 'Approve' 
+                      : actionType === 'reject' 
+                        ? 'Reject' 
+                        : 'Escalate'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowActionModal(false);
+                    setSelectedException(null);
+                    setActionNotes('');
+                    setError(null);
+                    setSuccess(null);
+                    setProcessing(false);
+                  }}
+                  disabled={processing}
+                  className="px-6 py-3 bg-white/5 border border-white/10 rounded-xl hover:bg-white/10 transition-all disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
-
-  return content;
 }
-
-

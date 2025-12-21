@@ -1,12 +1,25 @@
-import { SystemRole } from '../enums/employee-profile.enums';
+import { IsNotEmpty, IsOptional, IsString } from 'class-validator';
 
 export class RegisterDto {
-  employeeNumber: string;
-  password: string;
-  role: SystemRole;
+  @IsNotEmpty()
+  @IsString()
   firstName: string;
+
+  @IsNotEmpty()
+  @IsString()
   lastName: string;
+
+  @IsNotEmpty()
+  @IsString()
   nationalId: string;
-  dateOfHire: string;
-  address: { city: string; street: string }; // ✅ must be object not string
+
+  @IsNotEmpty()
+  password: string;
+
+  @IsNotEmpty()
+  @IsString()
+  candidateNumber: string;
+
+  @IsOptional()
+  resumeUrl?: string;
 }

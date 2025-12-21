@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
+import { JwtModule } from '@nestjs/jwt';
 import { EmployeeProfileController } from './employee-profile.controller';
 import { EmployeeProfileService } from './employee-profile.service';
 import { Candidate, CandidateSchema } from './models/candidate.schema';
@@ -32,9 +33,16 @@ import {
       },
       { name: EmployeeQualification.name, schema: EmployeeQualificationSchema },
     ]),
+    JwtModule.register({
+      secret: process.env.JWT_SECRET || 'super-secret-key',
+      signOptions: { expiresIn: '1d' },
+    }),
   ],
   controllers: [EmployeeProfileController],
   providers: [EmployeeProfileService],
-  exports: [EmployeeProfileService],
+  exports: [
+    EmployeeProfileService, // ✅ REQUIRED
+    MongooseModule,
+  ],
 })
 export class EmployeeProfileModule {}

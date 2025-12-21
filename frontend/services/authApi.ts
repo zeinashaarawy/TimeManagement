@@ -1,7 +1,7 @@
 import axios from "axios";
 import { UserRole } from "../utils/auth";
 
-// Base URL - same as timeManagementApi
+// Base URL - same as timeManagementApi (backend runs on port 5001)
 const getBaseURL = (): string => {
   if (process.env.NEXT_PUBLIC_API_URL) {
     return process.env.NEXT_PUBLIC_API_URL;
@@ -9,10 +9,11 @@ const getBaseURL = (): string => {
   
   if (typeof window !== 'undefined') {
     const hostname = window.location.hostname;
-    return `http://${hostname}:4000`;
+    const backendPort = process.env.NEXT_PUBLIC_BACKEND_PORT || '5001';
+    return `http://${hostname}:${backendPort}`;
   }
   
-  return "http://localhost:4000";
+  return process.env.NEXT_PUBLIC_API_URL || "http://localhost:5001";
 };
 
 const BASE_URL = getBaseURL();

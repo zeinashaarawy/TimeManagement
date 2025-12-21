@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
+import { JwtModule } from '@nestjs/jwt';
 import { PerformanceController } from './performance.controller';
 import { PerformanceService } from './performance.service';
 import {
@@ -22,7 +23,7 @@ import {
   AppraisalDispute,
   AppraisalDisputeSchema,
 } from './models/appraisal-dispute.schema';
-
+import { EmployeeProfileModule } from '../employee-profile/employee-profile.module';
 @Module({
   imports: [
     MongooseModule.forFeature([
@@ -32,6 +33,11 @@ import {
       { name: AppraisalRecord.name, schema: AppraisalRecordSchema },
       { name: AppraisalDispute.name, schema: AppraisalDisputeSchema },
     ]),
+    EmployeeProfileModule,
+    JwtModule.register({
+      secret: process.env.JWT_SECRET || 'super-secret-key',
+      signOptions: { expiresIn: '1d' },
+    }),
   ],
   controllers: [PerformanceController],
   providers: [PerformanceService],

@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { RecruitmentController } from './recruitment.controller';
 import { RecruitmentService } from './recruitment.service';
 import { MongooseModule } from '@nestjs/mongoose';
+import { JwtModule } from '@nestjs/jwt';
 import { JobTemplate, JobTemplateSchema } from './models/job-template.schema';
 import {
   JobRequisition,
@@ -65,6 +66,10 @@ import { StubOnboardingService } from './services/stub-services';
     ]),
     EmployeeProfileModule,
     OrganizationStructureModule,
+    JwtModule.register({
+      secret: process.env.JWT_SECRET || 'super-secret-key',
+      signOptions: { expiresIn: '1d' },
+    }),
   ],
   controllers: [RecruitmentController],
   providers: [

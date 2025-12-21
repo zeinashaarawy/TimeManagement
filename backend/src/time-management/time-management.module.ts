@@ -84,6 +84,9 @@ import { VacationIntegrationService } from './attendance/services/vacation-integ
 import { EmployeeSystemRole, EmployeeSystemRoleSchema } from '../employee-profile/models/employee-system-role.schema';
 import { forwardRef } from '@nestjs/common';
 import { LeavesModule } from '../leaves/leaves.module';
+import { AvailabilityModule } from './availability/availability.module';
+import { PermissionModule } from './permission/permission.module';
+import { DeviceModule } from './device/device.module';
 
 @Module({
   imports: [
@@ -125,6 +128,9 @@ import { LeavesModule } from '../leaves/leaves.module';
     ShiftModule, // Phase 1 - Shift Configuration & Assignment
     AttendanceModule, // Phase 2 - Attendance & Punching (exports ScheduleHelperService)
     forwardRef(() => LeavesModule), // US 16 - Vacation Package Integration (forwardRef to avoid circular dependency)
+    AvailabilityModule, // Employee availability API for Recruitment subsystem
+    PermissionModule, // US 15 - Permission Validation Rules (BR-TM-16, BR-TM-17, BR-TM-18)
+    DeviceModule, // BR-TM-13 - Device Sync Service
   ],
   controllers: [
     TimeManagementController, // Main controller for Phase 2 & 4
@@ -145,6 +151,7 @@ import { LeavesModule } from '../leaves/leaves.module';
     RepeatedLatenessService, // US 12 - Repeated lateness tracking & escalation
     VacationIntegrationService, // US 16 - Vacation Package Integration
     // Note: PolicyEngineService already uses VacationIntegrationService via dependency injection
+    // PermissionValidationService and DeviceSyncService are provided by PermissionModule and DeviceModule
   ],
   exports: [
     TimeManagementService,

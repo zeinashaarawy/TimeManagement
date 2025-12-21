@@ -1,474 +1,738 @@
-import { useState, useEffect } from "react";
-import { Clock, CheckCircle, XCircle, AlertCircle, Calendar, LogIn, LogOut } from "lucide-react";
-import { getCurrentUser, getCurrentUserRole, type UserRole } from "../../../utils/auth";
-import { 
-  recordPunch, 
-  getAttendance, 
-  getEmployeeExceptions,
-  createException 
-} from "../../../services/timeManagementApi";
+import React, { useState, useEffect } from 'react';
+import { recordPunch, getAttendance, correctAttendance, detectMissedPunch, getEmployeeExceptions, getAssignments, getShiftTemplates } from '../../../services/timeManagementApi';
+import { getCurrentUser } from '../../../utils/auth';
+import api from '../../../api/axios';
 
 interface Punch {
   type: 'IN' | 'OUT';
   time: string;
+  device?: string;
+  location?: string;
 }
 
 interface AttendanceRecord {
   _id?: string;
   employeeId: string;
-  recordDate?: string;
+  recordDate: string;
   punches: Punch[];
   totalWorkMinutes: number;
   hasMissedPunch: boolean;
+  status?: 'Present' | 'Absent' | 'Late' | 'Early Leave';
   exceptionIds?: string[];
 }
 
 interface TimeException {
-  _id: string;
+  _id?: string;
   employeeId: string;
-  attendanceRecordId: string;
   type: string;
-  status: string;
-  reason: string;
-  createdAt: string;
+  attendanceRecordId?: string;
+  assignedTo?: string;
+  status: 'OPEN' | 'PENDING' | 'APPROVED' | 'REJECTED' | 'ESCALATED' | 'RESOLVED';
+  reason?: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
-export default function Attendance({ asTab = false }: { asTab?: boolean } = {}) {
-  const [user, setUser] = useState<{ id: string; role: UserRole; username: string } | null>(null);
-  const [userRole, setUserRole] = useState<UserRole | null>(null);
+export default function Attendance() {
+  const [currentUser, setCurrentUser] = useState(getCurrentUser());
+  const [employeeProfile, setEmployeeProfile] = useState<any>(null);
+  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [attendance, setAttendance] = useState<AttendanceRecord | null>(null);
-  const [exceptions, setExceptions] = useState<TimeException[]>([]);
   const [loading, setLoading] = useState(false);
   const [punching, setPunching] = useState(false);
+  const [showCorrectionModal, setShowCorrectionModal] = useState(false);
+  const [correctionPunches, setCorrectionPunches] = useState<Array<{ type: 'IN' | 'OUT'; timestamp: string }>>([]);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-  const [selectedDate, setSelectedDate] = useState<string>(
-    new Date().toISOString().split('T')[0]
-  );
-  const [showExceptionForm, setShowExceptionForm] = useState(false);
-  const [exceptionForm, setExceptionForm] = useState({
-    type: 'MISSED_PUNCH',
-    reason: '',
-    comment: '',
-  });
+  const [myExceptions, setMyExceptions] = useState<TimeException[]>([]);
+  const [loadingExceptions, setLoadingExceptions] = useState(false);
+  
+  // Shift assignments
+  const [shiftAssignments, setShiftAssignments] = useState<any[]>([]);
+  const [shiftTemplates, setShiftTemplates] = useState<any[]>([]);
+  const [loadingShifts, setLoadingShifts] = useState(false);
+
+  // Get employee ID from multiple sources
+  const getEmployeeId = () => {
+    // Try from getCurrentUser first (from JWT token)
+    if (currentUser?.id) {
+      return currentUser.id;
+    }
+    // Fallback to localStorage userId (set during login)
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('userId') || null;
+    }
+    return null;
+  };
+
+  const employeeId = getEmployeeId();
+
+  // Load employee profile to show name
+  useEffect(() => {
+    const loadProfile = async () => {
+      if (employeeId) {
+        try {
+          const token = localStorage.getItem('token');
+          const res = await api.get('/employee-profile/profile/me', {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          setEmployeeProfile(res.data);
+        } catch (err) {
+          console.warn('Failed to load employee profile:', err);
+        }
+      }
+    };
+    loadProfile();
+  }, [employeeId]);
 
   useEffect(() => {
-    const currentUser = getCurrentUser();
-    const role = getCurrentUserRole();
-    setUser(currentUser);
-    setUserRole(role);
-    
-    if (currentUser) {
-      loadAttendance(currentUser.id);
-      loadExceptions(currentUser.id);
+    if (employeeId) {
+      loadAttendance();
+      loadMyExceptions();
+      loadShiftAssignments();
+    } else {
+      setError('Employee ID not found. Please log in again.');
     }
-  }, [selectedDate]);
+  }, [employeeId, selectedDate]);
 
-  const loadAttendance = async (employeeId: string) => {
-    setLoading(true);
-    setError(null);
+  const loadAttendance = async () => {
+    if (!employeeId) return;
     try {
+      setLoading(true);
       const response = await getAttendance(employeeId, selectedDate);
-      // Handle null, undefined, or empty responses
-      if (response && response.data !== null && response.data !== undefined) {
-        setAttendance(response.data);
-      } else {
-        // No attendance record found for this date - this is normal
-        setAttendance(null);
-      }
+      setAttendance(response.data || null);
     } catch (err: any) {
-      console.error("Error loading attendance:", err);
-      // If it's a 404, it just means no attendance record exists yet
-      if (err.response?.status === 404) {
-        setAttendance(null);
-      } else {
-        setError(err.response?.data?.message || err.message || "Failed to load attendance");
-      }
+      setError(err.message || 'Failed to load attendance');
     } finally {
       setLoading(false);
     }
   };
 
-  const loadExceptions = async (employeeId: string) => {
+  const loadMyExceptions = async () => {
+    if (!employeeId) return;
     try {
+      setLoadingExceptions(true);
       const response = await getEmployeeExceptions(employeeId);
-      const data = response?.data;
-      // Handle null, undefined, or empty responses
-      if (data === null || data === undefined) {
-        setExceptions([]);
-      } else {
-        const exceptionsList = Array.isArray(data) ? data : (data?.exceptions || []);
-        setExceptions(exceptionsList);
-      }
+      setMyExceptions(response.data || []);
     } catch (err: any) {
-      console.error("Error loading exceptions:", err);
-      // If it's a 404, just set empty array
-      if (err.response?.status === 404) {
-        setExceptions([]);
-      }
+      // Silently fail - exceptions might not be accessible to all roles
+      console.warn('Failed to load exceptions:', err.message);
+    } finally {
+      setLoadingExceptions(false);
     }
   };
 
+  const loadShiftAssignments = async () => {
+    if (!employeeId) return;
+    try {
+      setLoadingShifts(true);
+      
+      // Get employee profile to check department and position
+      const departmentId = employeeProfile?.primaryDepartmentId?._id || employeeProfile?.primaryDepartmentId;
+      const positionId = employeeProfile?.primaryPositionId?._id || employeeProfile?.primaryPositionId;
+      
+      // Fetch assignments from all sources
+      const promises: Promise<any>[] = [];
+      
+      // Direct employee assignment
+      promises.push(
+        getAssignments({ employeeId }).catch(() => ({ data: [] }))
+      );
+      
+      // Department assignments
+      if (departmentId) {
+        promises.push(
+          getAssignments({ departmentId }).catch(() => ({ data: [] }))
+        );
+      }
+      
+      // Position assignments
+      if (positionId) {
+        promises.push(
+          getAssignments({ positionId }).catch(() => ({ data: [] }))
+        );
+      }
+      
+      // Also load templates
+      promises.push(
+        getShiftTemplates().catch(() => ({ data: [] }))
+      );
+      
+      const results = await Promise.all(promises);
+      
+      // Combine assignments and remove duplicates
+      const assignmentMap = new Map();
+      results.slice(0, -1).forEach(result => {
+        const assignments = result.data || [];
+        assignments.forEach((assignment: any) => {
+          if (assignment._id) {
+            assignmentMap.set(assignment._id.toString(), assignment);
+          }
+        });
+      });
+      
+      setShiftAssignments(Array.from(assignmentMap.values()));
+      
+      // Set templates from last result
+      const templatesResult = results[results.length - 1];
+      setShiftTemplates(templatesResult.data || []);
+    } catch (err: any) {
+      console.warn('Failed to load shift assignments:', err.message);
+    } finally {
+      setLoadingShifts(false);
+    }
+  };
+  
+  // Reload shift assignments when profile is loaded
+  useEffect(() => {
+    if (employeeProfile && employeeId) {
+      loadShiftAssignments();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [employeeProfile]);
+  
+  const getTemplateName = (templateId: any) => {
+    if (typeof templateId === 'object' && templateId?.name) {
+      return templateId.name;
+    }
+    const template = shiftTemplates.find(t => t._id === templateId);
+    return template?.name || 'Unknown Template';
+  };
+  
+  const getAssignmentStatusBadge = (status: string) => {
+    const colors: Record<string, string> = {
+      Active: 'bg-green-500/20 text-green-300 border-green-400/30',
+      Inactive: 'bg-gray-500/20 text-gray-300 border-gray-400/30',
+      Expired: 'bg-red-500/20 text-red-300 border-red-400/30',
+      PENDING: 'bg-yellow-500/20 text-yellow-300 border-yellow-400/30',
+    };
+    return colors[status] || colors.Inactive;
+  };
+
   const handlePunch = async (type: 'IN' | 'OUT') => {
-    if (!user) {
-      setError("User not found. Please log in.");
+    if (!employeeId) {
+      setError('Employee ID is required');
       return;
     }
 
-    setPunching(true);
-    setError(null);
-    setSuccess(null);
-
     try {
+      setPunching(true);
+      setError(null);
+      setSuccess(null);
       await recordPunch({
-        employeeId: user.id,
-        timestamp: new Date(),
-        type: type,
-        device: navigator.userAgent,
+        employeeId,
+        timestamp: new Date().toISOString(),
+        type,
+        device: 'Web Portal',
         location: 'Office',
       });
-
-      setSuccess(`Successfully punched ${type === 'IN' ? 'in' : 'out'}!`);
-      await loadAttendance(user.id);
-      await loadExceptions(user.id);
+      setSuccess(`Successfully punched ${type === 'IN' ? 'in' : 'out'}`);
+      loadAttendance();
     } catch (err: any) {
-      console.error("Error recording punch:", err);
-      const errorMsg = err.response?.data?.message || err.message || `Failed to punch ${type === 'IN' ? 'in' : 'out'}`;
-      setError(errorMsg);
+      setError(err.response?.data?.message || err.message || `Failed to punch ${type === 'IN' ? 'in' : 'out'}`);
     } finally {
       setPunching(false);
     }
   };
 
-  const handleSubmitException = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!user || !attendance?._id) {
-      setError("Cannot submit exception: Missing user or attendance record");
-      return;
+  const handleDetectMissed = async () => {
+    if (!employeeId) return;
+    try {
+      setError(null);
+      setSuccess(null);
+      await detectMissedPunch({
+        employeeId,
+        date: selectedDate,
+      });
+      setSuccess('Missed punch detection completed');
+      loadAttendance();
+    } catch (err: any) {
+      setError(err.response?.data?.message || err.message || 'Failed to detect missed punches');
     }
+  };
 
-    setLoading(true);
-    setError(null);
-    setSuccess(null);
+  const handleCorrectionSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!employeeId || correctionPunches.length === 0) return;
 
     try {
-      await createException({
-        employeeId: user.id,
-        recordId: attendance._id,
-        reason: exceptionForm.reason || exceptionForm.comment,
-        assignedToId: user.id, // Will be updated by manager
-        type: exceptionForm.type,
+      setError(null);
+      setSuccess(null);
+      await correctAttendance({
+        employeeId,
+        date: selectedDate,
+        punches: correctionPunches,
       });
-
-      setSuccess("Exception submitted successfully!");
-      setShowExceptionForm(false);
-      setExceptionForm({ type: 'MISSED_PUNCH', reason: '', comment: '' });
-      await loadExceptions(user.id);
-      await loadAttendance(user.id);
+      setSuccess('Correction request submitted successfully');
+      setShowCorrectionModal(false);
+      setCorrectionPunches([]);
+      loadAttendance();
+      loadMyExceptions(); // Reload exceptions to show the new request
     } catch (err: any) {
-      console.error("Error submitting exception:", err);
-      setError(err.response?.data?.message || err.message || "Failed to submit exception");
-    } finally {
-      setLoading(false);
+      setError(err.response?.data?.message || err.message || 'Failed to submit correction');
     }
   };
 
-  const getNextPunchType = (): 'IN' | 'OUT' | null => {
-    if (!attendance || !attendance.punches || attendance.punches.length === 0) {
-      return 'IN';
-    }
-    const sortedPunches = [...attendance.punches].sort((a, b) => 
-      new Date(a.time).getTime() - new Date(b.time).getTime()
-    );
-    const lastPunch = sortedPunches[sortedPunches.length - 1];
-    return lastPunch.type === 'IN' ? 'OUT' : 'IN';
-  };
-
-  const formatTime = (timeString: string) => {
-    return new Date(timeString).toLocaleTimeString('en-US', { 
-      hour: '2-digit', 
-      minute: '2-digit',
-      hour12: true 
-    });
-  };
-
-  const formatHours = (minutes: number) => {
+  const formatTime = (minutes: number) => {
     const hours = Math.floor(minutes / 60);
     const mins = minutes % 60;
     return `${hours}h ${mins}m`;
   };
 
-  const nextPunchType = getNextPunchType();
-  const todayExceptions = exceptions.filter(ex => {
-    if (!attendance?._id) return false;
-    return ex.attendanceRecordId === attendance._id && ex.status === 'OPEN';
-  });
+  const formatDateTime = (dateString: string) => {
+    return new Date(dateString).toLocaleString();
+  };
 
-  const content = (
-    <div className={asTab ? "" : "min-h-screen bg-gradient-to-br from-slate-950 via-blue-950 to-slate-900 text-white px-6 py-12"}>
-      <div className={asTab ? "" : "max-w-6xl mx-auto"}>
-        {/* Header */}
-        {!asTab && (
-          <div className="mb-8">
-            <h1 className="text-4xl lg:text-5xl font-light mb-2">Attendance Dashboard</h1>
-            <p className="text-gray-400">View your attendance, punch in/out, and manage exceptions</p>
-          </div>
-        )}
+  const getStatusBadge = (status?: string) => {
+    const colors: Record<string, string> = {
+      Present: 'bg-green-500/20 text-green-300 border-green-400/30',
+      Absent: 'bg-red-500/20 text-red-300 border-red-400/30',
+      Late: 'bg-yellow-500/20 text-yellow-300 border-yellow-400/30',
+      'Early Leave': 'bg-orange-500/20 text-orange-300 border-orange-400/30',
+    };
+    return colors[status || ''] || 'bg-gray-500/20 text-gray-300 border-gray-400/30';
+  };
 
-        {/* Error/Success Messages */}
-        {error && (
-          <div className="mb-6 p-4 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400">
-            {error}
-          </div>
-        )}
-        {success && (
-          <div className="mb-6 p-4 bg-green-500/10 border border-green-500/20 rounded-lg text-green-400">
-            {success}
-          </div>
-        )}
+  const hasInPunch = attendance?.punches?.some(p => p.type === 'IN');
+  const hasOutPunch = attendance?.punches?.some(p => p.type === 'OUT');
 
-        {/* Date Selector */}
-        <div className="mb-6 flex items-center gap-4">
-          <label className="text-gray-400 flex items-center gap-2">
-            <Calendar className="w-4 h-4" />
-            Date:
-          </label>
+  return (
+    <div className="w-full">
+      <div className="mb-6">
+        <h2 className="text-2xl font-semibold mb-2 text-white">Attendance Records</h2>
+        <p className="text-gray-400 text-sm">Record clock in/out and view attendance logs</p>
+      </div>
+
+      {/* Messages */}
+      {error && (
+        <div className="mb-4 p-4 bg-red-500/10 border border-red-500/20 rounded-xl text-red-300">
+          {error}
+        </div>
+      )}
+      {success && (
+        <div className="mb-4 p-4 bg-green-500/10 border border-green-500/20 rounded-xl text-green-300">
+          {success}
+        </div>
+      )}
+
+      {/* Employee Info and Date Selection */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+        <div>
+          <label className="block text-sm text-gray-400 mb-2">Employee</label>
+          {employeeProfile ? (
+            <div className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/10 text-white">
+              <p className="font-semibold">
+                {employeeProfile.firstName} {employeeProfile.lastName}
+              </p>
+              {employeeProfile.employeeNumber && (
+                <p className="text-xs text-gray-400">ID: {employeeProfile.employeeNumber}</p>
+              )}
+            </div>
+          ) : employeeId ? (
+            <div className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/10 text-gray-400">
+              Loading employee info...
+            </div>
+          ) : (
+            <div className="w-full px-4 py-2 rounded-lg bg-red-500/10 border border-red-500/20 text-red-300">
+              Employee ID not found. Please log in again.
+            </div>
+          )}
+        </div>
+        <div>
+          <label className="block text-sm text-gray-400 mb-2">Date</label>
           <input
             type="date"
             value={selectedDate}
             onChange={(e) => setSelectedDate(e.target.value)}
-            className="px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white"
-            max={new Date().toISOString().split('T')[0]}
+            className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/10 text-white"
           />
         </div>
+      </div>
 
-        {loading && !attendance ? (
-          <div className="text-center py-12">
-            <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
-            <p className="text-gray-400 mt-4">Loading attendance...</p>
+      {/* Punch In/Out Buttons */}
+      <div className="mb-6 bg-white/5 border border-white/10 rounded-2xl p-6">
+        <h3 className="text-lg font-semibold text-white mb-4">Clock In/Out</h3>
+        <div className="flex gap-4">
+          <button
+            onClick={() => handlePunch('IN')}
+            disabled={punching || !employeeId}
+            className="flex-1 px-6 py-4 bg-gradient-to-r from-green-500 to-emerald-500 rounded-xl hover:from-green-400 hover:to-emerald-400 transition-all disabled:opacity-50 disabled:cursor-not-allowed text-lg font-semibold"
+          >
+            {punching ? 'Processing...' : '🕐 Clock In'}
+          </button>
+          <button
+            onClick={() => handlePunch('OUT')}
+            disabled={punching || !employeeId}
+            className="flex-1 px-6 py-4 bg-gradient-to-r from-red-500 to-rose-500 rounded-xl hover:from-red-400 hover:to-rose-400 transition-all disabled:opacity-50 disabled:cursor-not-allowed text-lg font-semibold"
+          >
+            {punching ? 'Processing...' : '🕐 Clock Out'}
+          </button>
+        </div>
+      </div>
+
+      {/* My Shift Assignments */}
+      <div className="mb-6 bg-white/5 border border-white/10 rounded-2xl p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-semibold text-white">📅 My Shift Assignments</h3>
+          <button
+            onClick={loadShiftAssignments}
+            disabled={loadingShifts}
+            className="px-3 py-1 bg-blue-500/10 border border-blue-500/20 rounded-lg text-blue-300 hover:bg-blue-500/20 text-xs disabled:opacity-50"
+          >
+            {loadingShifts ? 'Loading...' : '🔄 Refresh'}
+          </button>
+        </div>
+        
+        {loadingShifts ? (
+          <div className="flex items-center justify-center py-8">
+            <div className="animate-pulse">
+              <div className="w-8 h-8 border-2 border-cyan-500/30 border-t-cyan-500 rounded-full"></div>
+            </div>
+          </div>
+        ) : shiftAssignments.length > 0 ? (
+          <div className="space-y-3">
+            {shiftAssignments.map((assignment) => {
+              const isActive = assignment.status === 'Active' || assignment.status === 'ACTIVE';
+              const effectiveFrom = new Date(assignment.effectiveFrom);
+              const effectiveTo = assignment.effectiveTo ? new Date(assignment.effectiveTo) : null;
+              const today = new Date();
+              const isCurrent = effectiveFrom <= today && (!effectiveTo || effectiveTo >= today);
+              
+              return (
+                <div
+                  key={assignment._id}
+                  className={`p-4 rounded-xl border ${
+                    isCurrent && isActive
+                      ? 'bg-green-500/10 border-green-500/20'
+                      : 'bg-white/5 border-white/10'
+                  }`}
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-3 mb-2">
+                        <h4 className="text-white font-semibold">
+                          {getTemplateName(assignment.shiftTemplateId)}
+                        </h4>
+                        <span className={`text-xs px-2 py-1 rounded-full border ${getAssignmentStatusBadge(assignment.status)}`}>
+                          {assignment.status || 'Unknown'}
+                        </span>
+                        {isCurrent && isActive && (
+                          <span className="text-xs px-2 py-1 rounded-full bg-green-500/20 text-green-300 border border-green-400/30">
+                            Current
+                          </span>
+                        )}
+                      </div>
+                      <div className="grid grid-cols-2 gap-4 text-sm">
+                        <div>
+                          <p className="text-gray-400">Effective From</p>
+                          <p className="text-white">{effectiveFrom.toLocaleDateString()}</p>
+                        </div>
+                        <div>
+                          <p className="text-gray-400">Effective To</p>
+                          <p className="text-white">
+                            {effectiveTo ? effectiveTo.toLocaleDateString() : 'Indefinite'}
+                          </p>
+                        </div>
+                      </div>
+                      {assignment.metadata?.reason && (
+                        <p className="text-xs text-gray-400 mt-2">
+                          Reason: {assignment.metadata.reason}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         ) : (
-          <>
-            {/* Attendance Status Card */}
-            <div className="bg-white/5 border border-white/10 backdrop-blur-xl rounded-2xl p-6 mb-6">
-              <div className="flex items-center justify-between mb-6">
-                <div>
-                  <h2 className="text-2xl font-light mb-2">Today's Attendance</h2>
-                  <p className="text-gray-400">
-                    {selectedDate === new Date().toISOString().split('T')[0] 
-                      ? "Current status" 
-                      : `Status for ${new Date(selectedDate).toLocaleDateString()}`}
-                  </p>
-                </div>
-                {attendance?.hasMissedPunch && (
-                  <div className="flex items-center gap-2 text-yellow-400">
-                    <AlertCircle className="w-5 h-5" />
-                    <span className="text-sm">Exception Required</span>
-                  </div>
-                )}
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                {/* Total Worked Hours */}
-                <div className="bg-black/20 rounded-lg p-4">
-                  <p className="text-gray-400 text-sm mb-2">Total Worked</p>
-                  <p className="text-3xl font-light">
-                    {attendance ? formatHours(attendance.totalWorkMinutes) : "0h 0m"}
-                  </p>
-                </div>
-
-                {/* Punch In Time */}
-                <div className="bg-black/20 rounded-lg p-4">
-                  <p className="text-gray-400 text-sm mb-2">Punch In</p>
-                  <p className="text-2xl font-light">
-                    {attendance?.punches?.find(p => p.type === 'IN') 
-                      ? formatTime(attendance.punches.find(p => p.type === 'IN')!.time)
-                      : "Not punched in"}
-                  </p>
-                </div>
-
-                {/* Punch Out Time */}
-                <div className="bg-black/20 rounded-lg p-4">
-                  <p className="text-gray-400 text-sm mb-2">Punch Out</p>
-                  <p className="text-2xl font-light">
-                    {attendance?.punches?.find(p => p.type === 'OUT') 
-                      ? formatTime(attendance.punches.find(p => p.type === 'OUT')!.time)
-                      : "Not punched out"}
-                  </p>
-                </div>
-              </div>
-
-              {/* Punch History */}
-              {attendance?.punches && attendance.punches.length > 0 && (
-                <div className="mb-6">
-                  <h3 className="text-lg font-light mb-3">Punch History</h3>
-                  <div className="space-y-2">
-                    {[...attendance.punches]
-                      .sort((a, b) => new Date(a.time).getTime() - new Date(b.time).getTime())
-                      .map((punch, idx) => (
-                        <div
-                          key={idx}
-                          className="flex items-center justify-between p-3 bg-black/20 rounded-lg"
-                        >
-                          <div className="flex items-center gap-3">
-                            {punch.type === 'IN' ? (
-                              <LogIn className="w-5 h-5 text-green-400" />
-                            ) : (
-                              <LogOut className="w-5 h-5 text-red-400" />
-                            )}
-                            <span className="font-medium">
-                              {punch.type === 'IN' ? 'Punched In' : 'Punched Out'}
-                            </span>
-                          </div>
-                          <span className="text-gray-400">
-                            {formatTime(punch.time)}
-                          </span>
-                        </div>
-                      ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Punch Button */}
-              {selectedDate === new Date().toISOString().split('T')[0] && (
-                <div className="flex justify-center">
-                  <button
-                    onClick={() => nextPunchType && handlePunch(nextPunchType)}
-                    disabled={punching || !nextPunchType}
-                    className={`px-8 py-4 rounded-xl font-medium text-lg transition-all ${
-                      nextPunchType === 'IN'
-                        ? 'bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600'
-                        : 'bg-gradient-to-r from-red-500 to-rose-500 hover:from-red-600 hover:to-rose-600'
-                    } ${punching || !nextPunchType ? 'opacity-50 cursor-not-allowed' : 'hover:scale-105'}`}
-                  >
-                    {punching ? (
-                      <span className="flex items-center gap-2">
-                        <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                        Processing...
-                      </span>
-                    ) : nextPunchType === 'IN' ? (
-                      <span className="flex items-center gap-2">
-                        <LogIn className="w-5 h-5" />
-                        Punch In
-                      </span>
-                    ) : (
-                      <span className="flex items-center gap-2">
-                        <LogOut className="w-5 h-5" />
-                        Punch Out
-                      </span>
-                    )}
-                  </button>
-                </div>
-              )}
-            </div>
-
-            {/* Exceptions Section */}
-            {(attendance?.hasMissedPunch || todayExceptions.length > 0) && (
-              <div className="bg-white/5 border border-white/10 backdrop-blur-xl rounded-2xl p-6 mb-6">
-                <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-2xl font-light">Exceptions</h2>
-                  {attendance?.hasMissedPunch && !showExceptionForm && (
-                    <button
-                      onClick={() => setShowExceptionForm(true)}
-                      className="px-4 py-2 bg-blue-500/20 border border-blue-500/30 rounded-lg text-blue-400 hover:bg-blue-500/30 transition-colors"
-                    >
-                      Submit Exception
-                    </button>
-                  )}
-                </div>
-
-                {/* Exception Form */}
-                {showExceptionForm && (
-                  <form onSubmit={handleSubmitException} className="mb-6 p-4 bg-black/20 rounded-lg">
-                    <div className="space-y-4">
-                      <div>
-                        <label className="block text-sm text-gray-400 mb-2">Exception Type</label>
-                        <select
-                          value={exceptionForm.type}
-                          onChange={(e) => setExceptionForm({ ...exceptionForm, type: e.target.value })}
-                          className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white"
-                        >
-                          <option value="MISSED_PUNCH">Missed Punch</option>
-                          <option value="LATE">Late Arrival</option>
-                          <option value="EARLY_LEAVE">Early Leave</option>
-                          <option value="SHORT_TIME">Short Time</option>
-                          <option value="MANUAL_ADJUSTMENT">Manual Adjustment</option>
-                        </select>
-                      </div>
-                      <div>
-                        <label className="block text-sm text-gray-400 mb-2">Reason</label>
-                        <textarea
-                          value={exceptionForm.reason}
-                          onChange={(e) => setExceptionForm({ ...exceptionForm, reason: e.target.value })}
-                          placeholder="Explain the reason for this exception..."
-                          rows={3}
-                          className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white placeholder-gray-500"
-                          required
-                        />
-                      </div>
-                      <div className="flex gap-2">
-                        <button
-                          type="submit"
-                          disabled={loading}
-                          className="px-6 py-2 bg-blue-500 hover:bg-blue-600 rounded-lg transition-colors disabled:opacity-50"
-                        >
-                          {loading ? "Submitting..." : "Submit"}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setShowExceptionForm(false);
-                            setExceptionForm({ type: 'MISSED_PUNCH', reason: '', comment: '' });
-                          }}
-                          className="px-6 py-2 bg-white/5 border border-white/10 rounded-lg hover:bg-white/10 transition-colors"
-                        >
-                          Cancel
-                        </button>
-                      </div>
-                    </div>
-                  </form>
-                )}
-
-                {/* Existing Exceptions */}
-                {todayExceptions.length > 0 && (
-                  <div className="space-y-3">
-                    {todayExceptions.map((exception) => (
-                      <div
-                        key={exception._id}
-                        className="p-4 bg-black/20 rounded-lg border border-white/10"
-                      >
-                        <div className="flex items-start justify-between">
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2 mb-2">
-                              <span className="px-2 py-1 bg-yellow-500/20 text-yellow-400 rounded text-sm">
-                                {exception.type.replace('_', ' ')}
-                              </span>
-                              <span className={`px-2 py-1 rounded text-sm ${
-                                exception.status === 'APPROVED' ? 'bg-green-500/20 text-green-400' :
-                                exception.status === 'REJECTED' ? 'bg-red-500/20 text-red-400' :
-                                'bg-yellow-500/20 text-yellow-400'
-                              }`}>
-                                {exception.status}
-                              </span>
-                            </div>
-                            <p className="text-gray-300 mb-1">{exception.reason}</p>
-                            <p className="text-xs text-gray-500">
-                              Submitted: {new Date(exception.createdAt).toLocaleString()}
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-          </>
+          <div className="text-center py-8">
+            <p className="text-gray-400 mb-2">No shift assignments found</p>
+            <p className="text-xs text-gray-500">
+              Contact HR if you expect to have shift assignments
+            </p>
+          </div>
         )}
       </div>
+
+      {/* Attendance Summary */}
+      {loading ? (
+        <div className="flex items-center justify-center py-12">
+          <div className="animate-pulse">
+            <div className="w-16 h-16 border-4 border-cyan-500/30 border-t-cyan-500 rounded-full"></div>
+          </div>
+        </div>
+      ) : attendance ? (
+        <div className="space-y-4">
+          {/* Summary Card */}
+          <div className="bg-white/5 border border-white/10 rounded-2xl p-6">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div>
+                <p className="text-sm text-gray-400 mb-1">Date</p>
+                <p className="text-white font-semibold">
+                  {new Date(attendance.recordDate).toLocaleDateString()}
+                </p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-400 mb-1">Total Hours</p>
+                <p className="text-white font-semibold">
+                  {formatTime(attendance.totalWorkMinutes)}
+                </p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-400 mb-1">Status</p>
+                <span className={`text-xs px-2 py-1 rounded-full border ${getStatusBadge(attendance.status)}`}>
+                  {attendance.status || 'Unknown'}
+                </span>
+              </div>
+              <div>
+                <p className="text-sm text-gray-400 mb-1">Missed Punch</p>
+                <span className={`text-xs px-2 py-1 rounded-full border ${
+                  attendance.hasMissedPunch
+                    ? 'bg-red-500/20 text-red-300 border-red-400/30'
+                    : 'bg-green-500/20 text-green-300 border-green-400/30'
+                }`}>
+                  {attendance.hasMissedPunch ? 'Yes' : 'No'}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Punches List */}
+          <div className="bg-white/5 border border-white/10 rounded-2xl p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-white">Punch Records</h3>
+              <div className="flex gap-2">
+                <button
+                  onClick={handleDetectMissed}
+                  className="px-4 py-2 bg-blue-500/10 border border-blue-500/20 rounded-xl text-blue-300 hover:bg-blue-500/20 text-sm"
+                >
+                  Detect Missed
+                </button>
+                <button
+                  onClick={() => {
+                    setCorrectionPunches(attendance.punches.map(p => ({
+                      type: p.type,
+                      timestamp: p.time,
+                    })));
+                    setShowCorrectionModal(true);
+                  }}
+                  className="px-4 py-2 bg-yellow-500/10 border border-yellow-500/20 rounded-xl text-yellow-300 hover:bg-yellow-500/20 text-sm"
+                >
+                  Request Correction
+                </button>
+              </div>
+            </div>
+
+            {attendance.punches && attendance.punches.length > 0 ? (
+              <div className="space-y-2">
+                {attendance.punches.map((punch, index) => (
+                  <div
+                    key={index}
+                    className="flex items-center justify-between p-4 bg-white/5 rounded-xl border border-white/10"
+                  >
+                    <div className="flex items-center gap-4">
+                      <div className={`w-12 h-12 rounded-full flex items-center justify-center ${
+                        punch.type === 'IN'
+                          ? 'bg-green-500/20 text-green-300'
+                          : 'bg-red-500/20 text-red-300'
+                      }`}>
+                        {punch.type === 'IN' ? '⬇️' : '⬆️'}
+                      </div>
+                      <div>
+                        <p className="text-white font-semibold">
+                          {punch.type === 'IN' ? 'Clock In' : 'Clock Out'}
+                        </p>
+                        <p className="text-sm text-gray-400">
+                          {formatDateTime(punch.time)}
+                        </p>
+                      </div>
+                    </div>
+                    {punch.device && (
+                      <div className="text-sm text-gray-400">
+                        {punch.device}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8 text-gray-400">
+                <p>No punches recorded for this date</p>
+              </div>
+            )}
+          </div>
+
+          {/* Alerts */}
+          {attendance.hasMissedPunch && (
+            <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-2xl p-4">
+              <div className="flex items-center gap-3">
+                <span className="text-2xl">⚠️</span>
+                <div>
+                  <p className="text-yellow-300 font-semibold">Missed Punch Detected</p>
+                  <p className="text-yellow-200/70 text-sm">
+                    {!hasInPunch && 'Missing clock in punch'}
+                    {!hasInPunch && !hasOutPunch && ' and '}
+                    {!hasOutPunch && 'Missing clock out punch'}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* My Correction Requests & Status */}
+          <div className="bg-white/5 border border-white/10 rounded-2xl p-6">
+            <h3 className="text-lg font-semibold text-white mb-4">📋 My Correction Requests</h3>
+            {loadingExceptions ? (
+              <div className="flex items-center justify-center py-8">
+                <div className="animate-pulse">
+                  <div className="w-8 h-8 border-2 border-cyan-500/30 border-t-cyan-500 rounded-full"></div>
+                </div>
+              </div>
+            ) : myExceptions.filter(ex => ex.type === 'MISSED_PUNCH' || ex.type === 'MANUAL_ADJUSTMENT').length > 0 ? (
+              <div className="space-y-3">
+                {myExceptions
+                  .filter(ex => ex.type === 'MISSED_PUNCH' || ex.type === 'MANUAL_ADJUSTMENT')
+                  .map((exception) => (
+                    <div
+                      key={exception._id}
+                      className="flex items-center justify-between p-4 bg-white/5 rounded-xl border border-white/10"
+                    >
+                      <div className="flex-1">
+                        <div className="flex items-center gap-3 mb-2">
+                          <span className={`text-xs px-2 py-1 rounded-full border ${
+                            exception.status === 'APPROVED' ? 'bg-green-500/20 text-green-300 border-green-400/30' :
+                            exception.status === 'REJECTED' ? 'bg-red-500/20 text-red-300 border-red-400/30' :
+                            exception.status === 'PENDING' ? 'bg-yellow-500/20 text-yellow-300 border-yellow-400/30' :
+                            exception.status === 'ESCALATED' ? 'bg-orange-500/20 text-orange-300 border-orange-400/30' :
+                            'bg-blue-500/20 text-blue-300 border-blue-400/30'
+                          }`}>
+                            {exception.status}
+                          </span>
+                          <span className="text-sm text-white font-medium">
+                            {exception.type === 'MISSED_PUNCH' ? 'Missed Punch Correction' : 'Manual Adjustment'}
+                          </span>
+                        </div>
+                        {exception.reason && (
+                          <p className="text-sm text-gray-400 mb-1">{exception.reason}</p>
+                        )}
+                        <p className="text-xs text-gray-500">
+                          Submitted: {exception.createdAt ? new Date(exception.createdAt).toLocaleString() : 'N/A'}
+                          {exception.updatedAt && exception.updatedAt !== exception.createdAt && (
+                            <> • Updated: {new Date(exception.updatedAt).toLocaleString()}</>
+                          )}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+              </div>
+            ) : (
+              <p className="text-center text-gray-400 text-sm py-4">No correction requests submitted yet</p>
+            )}
+          </div>
+        </div>
+      ) : (
+        <div className="text-center py-12 bg-white/5 border border-white/10 rounded-2xl">
+          <p className="text-gray-400">No attendance record found for the selected date</p>
+        </div>
+      )}
+
+      {/* Correction Modal */}
+      {showCorrectionModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+          <div className="bg-gradient-to-br from-slate-900 via-blue-950 to-slate-900 border border-white/10 rounded-3xl p-8 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-2xl font-semibold text-white">Request Attendance Correction</h3>
+              <button
+                onClick={() => {
+                  setShowCorrectionModal(false);
+                  setCorrectionPunches([]);
+                  setError(null);
+                  setSuccess(null);
+                }}
+                className="p-2 hover:bg-white/10 rounded-lg"
+              >
+                <span className="text-white text-xl">×</span>
+              </button>
+            </div>
+
+            <form onSubmit={handleCorrectionSubmit} className="space-y-6">
+              <div>
+                <p className="text-sm text-gray-400 mb-4">
+                  Update punch times for {new Date(selectedDate).toLocaleDateString()}
+                </p>
+                <div className="space-y-3">
+                  {correctionPunches.map((punch, index) => (
+                    <div key={index} className="flex items-center gap-3 p-3 bg-white/5 rounded-lg">
+                      <select
+                        value={punch.type}
+                        onChange={(e) => {
+                          const updated = [...correctionPunches];
+                          updated[index].type = e.target.value as 'IN' | 'OUT';
+                          setCorrectionPunches(updated);
+                        }}
+                        className="px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white"
+                      >
+                        <option value="IN">Clock In</option>
+                        <option value="OUT">Clock Out</option>
+                      </select>
+                      <input
+                        type="datetime-local"
+                        value={punch.timestamp ? new Date(punch.timestamp).toISOString().slice(0, 16) : ''}
+                        onChange={(e) => {
+                          const updated = [...correctionPunches];
+                          updated[index].timestamp = new Date(e.target.value).toISOString();
+                          setCorrectionPunches(updated);
+                        }}
+                        className="flex-1 px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setCorrectionPunches(correctionPunches.filter((_, i) => i !== index));
+                        }}
+                        className="px-3 py-2 bg-red-500/10 border border-red-500/20 rounded-lg text-red-300"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCorrectionPunches([...correctionPunches, { type: 'IN', timestamp: new Date().toISOString() }]);
+                  }}
+                  className="mt-3 px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white hover:bg-white/10"
+                >
+                  + Add Punch
+                </button>
+              </div>
+
+              <div className="flex gap-3 pt-4">
+                <button
+                  type="submit"
+                  className="flex-1 px-6 py-3 bg-gradient-to-r from-teal-500 to-emerald-500 rounded-xl hover:from-teal-400 hover:to-emerald-400 transition-all"
+                >
+                  Submit Correction Request
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowCorrectionModal(false);
+                    setCorrectionPunches([]);
+                    setError(null);
+                    setSuccess(null);
+                  }}
+                  className="px-6 py-3 bg-white/5 border border-white/10 rounded-xl hover:bg-white/10 transition-all"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
-
-  return content;
 }
-

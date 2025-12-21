@@ -7,11 +7,13 @@ import {
   Query,
   BadRequestException,
   UseGuards,
+  UsePipes,
+  ValidationPipe,
 } from '@nestjs/common';
 import { TimeManagementService } from './time-management.service';
 import { CreatePunchDto } from './attendance/dto/create-punch.dto';
 import { UpdatePunchDto } from './attendance/dto/update-punch.dto';
-import { TimeExceptionType } from './enums/index';
+import { TimeExceptionType, PermissionType } from './enums/index';
 import { RolesGuard } from './Shift/guards/roles.guard';
 import { Roles } from './Shift/decorators/roles.decorator';
 
@@ -21,11 +23,38 @@ export class TimeManagementController {
 
   // ------------------- RECORD A PUNCH -------------------
   @Post('punch')
+  @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
   async recordPunch(@Body() dto: CreatePunchDto) {
-    if (!dto.employeeId || !dto.timestamp || !dto.type) {
-      throw new BadRequestException('Missing required punch data');
+    try {
+      // Transform timestamp string to Date if needed
+      if (dto.timestamp && typeof dto.timestamp === 'string') {
+        dto.timestamp = new Date(dto.timestamp);
+      }
+      
+      if (!dto.employeeId || !dto.timestamp || !dto.type) {
+        throw new BadRequestException('Missing required punch data');
+      }
+
+      // Validate employeeId format
+      if (!dto.employeeId.match(/^[0-9a-fA-F]{24}$/)) {
+        throw new BadRequestException('Invalid employee ID format');
+      }
+
+      return await this.tmService.recordPunch(dto);
+    } catch (error) {
+      // Log the error for debugging
+      console.error('[TimeManagementController] Error in recordPunch:', error);
+      
+      // Re-throw BadRequestException as-is
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+      
+      // Wrap other errors
+      throw new BadRequestException(
+        error.message || 'Failed to record punch',
+      );
     }
-    return this.tmService.recordPunch(dto);
   }
 
   // ------------------- GET ATTENDANCE -------------------
@@ -59,6 +88,9 @@ export class TimeManagementController {
       reason: string;
       assignedToId: string;
       type?: string;
+      permissionType?: string; // BR-TM-16: Permission type (EARLY_IN, LATE_OUT, etc.)
+      durationMinutes?: number; // BR-TM-16: Duration in minutes
+      requestedDate?: string; // BR-TM-17: Date for which permission is requested (ISO string)
     },
   ) {
     if (
@@ -71,6 +103,8 @@ export class TimeManagementController {
     }
 
     const exceptionType = body.type ? (TimeExceptionType[body.type as keyof typeof TimeExceptionType] || undefined) : undefined;
+    const permissionType = body.permissionType ? (PermissionType[body.permissionType as keyof typeof PermissionType] || undefined) : undefined;
+    const requestedDate = body.requestedDate ? new Date(body.requestedDate) : undefined;
 
     return this.tmService.createTimeException(
       body.employeeId,
@@ -78,6 +112,9 @@ export class TimeManagementController {
       body.reason,
       body.assignedToId,
       exceptionType,
+      permissionType,
+      body.durationMinutes,
+      requestedDate,
     );
   }
 

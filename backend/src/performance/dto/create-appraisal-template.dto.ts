@@ -1,23 +1,46 @@
 // src/performance/dto/create-appraisal-template.dto.ts
 import {
+  IsArray,
+  IsBoolean,
+  IsEnum,
+  IsNotEmpty,
+  IsNumber,
+  IsOptional,
+  IsString,
+  Min,
+  ValidateNested,
+} from 'class-validator';
+import { Type } from 'class-transformer';
+import {
   AppraisalTemplateType,
   AppraisalRatingScaleType,
 } from '../enums/performance.enums';
 
 export class CreateAppraisalTemplateDto {
-  // Basic info
+  @IsString()
+  @IsNotEmpty()
   name: string;
+
+  @IsOptional()
+  @IsString()
   description?: string;
-  type: AppraisalTemplateType; // ANNUAL, SEMI_ANNUAL, ...
 
-  // Scope (optional)
-  applicableDepartmentIds?: string[]; // ObjectId strings
-  applicablePositionIds?: string[]; // ObjectId strings
+  @IsEnum(AppraisalTemplateType)
+  type: AppraisalTemplateType;
 
-  // Rating scale
-  ratingScaleType: AppraisalRatingScaleType; // e.g. FIVE_POINT, TEN_POINT, etc.
+  @IsOptional()
+  @IsArray()
+  applicableDepartmentIds?: string[];
 
-  // Rating scale definition – keep it flexible (matches RatingScaleDefinition in schema)
+  @IsOptional()
+  @IsArray()
+  applicablePositionIds?: string[];
+
+  @IsEnum(AppraisalRatingScaleType)
+  ratingScaleType: AppraisalRatingScaleType;
+
+  @IsOptional()
+  @IsArray()
   ratingScaleDefinition?: {
     label: string;
     minScore?: number;
@@ -25,15 +48,36 @@ export class CreateAppraisalTemplateDto {
     description?: string;
   }[];
 
-  // Evaluation criteria (matches EvaluationCriterion in schema)
-  criteria: {
-    key: string; // e.g. "COMMUNICATION"
-    title: string; // e.g. "Communication Skills"
-    description?: string;
-    weight: number; // e.g. 20 (for 20%)
-    isMandatory?: boolean;
-  }[];
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => CriterionDto)
+  criteria: CriterionDto[];
 
-  // Flags
+  @IsOptional()
+  @IsBoolean()
   isActive?: boolean;
+}
+
+/* ============================= */
+
+class CriterionDto {
+  @IsString()
+  @IsNotEmpty()
+  key: string;
+
+  @IsString()
+  @IsNotEmpty()
+  title: string;
+
+  @IsOptional()
+  @IsString()
+  description?: string;
+
+  @IsNumber()
+  @Min(1)
+  weight: number;
+
+  @IsOptional()
+  @IsBoolean()
+  isMandatory?: boolean;
 }
